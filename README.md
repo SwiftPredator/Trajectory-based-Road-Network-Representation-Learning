@@ -26,12 +26,14 @@ To install the required packages we recommend using [Conda](https://docs.conda.i
    ```
 2. Install conda environment
    ```sh
+   conda config --env --set channel_priority strict
    conda env create -f environment.yml
    ```
 3. Activate the environment
    ```sh
    conda activate road-emb
    ```
+4. Install [Fast Map Matching](https://fmm-wiki.github.io/docs/installation/) in the environment (Do the steps while in environment) and for MacOS do also [this](https://github.com/cyang-kth/fmm/pull/214)
 
 ### Tests
 

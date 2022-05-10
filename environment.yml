@@ -1,19 +1,21 @@
 name: road-emb
 channels:
+  - conda-forge
   - pytorch
   - defaults
-  - conda-forge
 dependencies:
   - python=3.9
+  - osmnx
   - pytorch
   - numpy
-  - pytest
-  - black
-  - pip
-  - pip:
-      - pdoc3
-      - matplotlib
-      - scipy
-      - pandas
-      - plotly
-      - networkx
+  - shapely
+  - swifter
+  # - pip:
+  #     - pdoc3
+  #     - matplotlib
+  #     - scipy
+  #     - pandas
+  #     - plotly
+  #- networkx
+  #- folium
+  #- overpass
