@@ -7,6 +7,7 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
+from fmm import STMATCH, Network, NetworkGraph, STMATCHConfig
 from shapely.geometry import LineString
 
 
@@ -16,6 +17,8 @@ class RoadNetwork:
     """
 
     G: nx.MultiDiGraph
+    gdf_nodes: gpd.GeoDataFrame
+    gdf_edges: gpd.GeoDataFrame
 
     def __init__(
         self,
@@ -39,6 +42,7 @@ class RoadNetwork:
             retain_all=retain_all,
             truncate_by_edge=truncate_by_edge,
         )
+        self.gdf_nodes, self.gdf_edges = ox.graph_to_gdfs(self.G)
 
     def map_trajectorie(self, coordinates: gpd.GeoDataFrame):
         P = ox.project_graph(self.G)
@@ -65,22 +69,19 @@ class RoadNetwork:
         gdf_nodes.to_file(path + "/nodes.shp", encoding="utf-8")
         gdf_edges.to_file(path + "/edges.shp", encoding="utf-8")
 
-    def fmm_trajectorie_mapping():
+    def fmm_trajectorie_mapping(self):
 
-        network = fmm.Network("../osm_data/test.shp")
-        graph = fmm.NetworkGraph(network)
+        network = Network("../osm_data/porto/edges.shp", "fid", "u", "v")
+        graph = NetworkGraph(network)
 
-        ubodt_gen = fmm.UBODTGenAlgorithm(network, graph)
+        stmatch_model = STMATCH(network, graph)
 
-        ubodt_gen.generate_ubodt("../data/ubodt.txt", 4, binary=False, use_omp=True)
-        ubodt = fmm.UBODT.read_ubodt_csv("../data/ubodt.txt")
-
-        model = fmm.FastMapMatch(network, graph, ubodt)
-
-        k = 8
-        radius = 0.003
+        k = 16
         gps_error = 0.0005
-        fmm_config = fmm.FastMapMatchConfig(k, radius, gps_error)
+        radius = 0.003
+        vmax = 0.0003
+        factor = 1.5
+        stmatch_config = STMATCHConfig(k, radius, gps_error, vmax, factor)
 
         input_config = fmm.GPSConfig()
         input_config.file = "../datasets/trajectories/Porto/mapped_id_poly.csv"
@@ -89,41 +90,21 @@ class RoadNetwork:
         print(input_config.to_string())
 
         result_config = fmm.ResultConfig()
-        result_config.file = "../datasets/trajectories/Porto/mr.txt"
+        result_config.file = "../datasets/trajectories/Porto/road-segment-mapping.txt"
         result_config.output_config.write_opath = True
         result_config.output_config.write_spdist = True
         result_config.output_config.write_speed = True
+        result_config.output_config.write_duration = True
         print(result_config.to_string())
 
-        status = model.match_gps_file(
-            input_config, result_config, fmm_config, use_omp=True
+        status = stmatch_model.match_gps_file(
+            input_config, result_config, stmatch_config, use_omp=True
         )
         print(status)
 
-    @staticmethod
-    def preprocess_trajectories_porto(
-        df: pd.DataFrame, min_gps_points: int = 10
-    ) -> pd.DataFrame:
-        """
-        Static method to preprocess a trajectorie dataframe containing gps points as string.
-        For example the porto trajectorie data.
-        Args:
-            df (pd.DataFrame): dataframe containing the trajectories
-            min_gps_points (int, optional): _description_. Defaults to 10.
-        """
-
-        def convert_to_line_string(x):
-            m = np.matrix(x).reshape(-1, 2)
-            if m.shape[0] >= min_gps_points:
-                line = LineString(m)
-                return line
-            return -1
-
-        df = df[df["MISSING_DATA"] == False]
-        df["POLYLINE"] = df["POLYLINE"].swifter.apply(convert_to_line_string)
-        df = df[df["POLYLINE"] != -1]
-
-        return df
+    @property
+    def bounds(self):
+        return self.gdf_nodes.geometry.total_bounds
 
     def visualize():
         ...
