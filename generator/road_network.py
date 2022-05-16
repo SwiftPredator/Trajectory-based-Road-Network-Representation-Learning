@@ -10,9 +10,10 @@ from shapely.geometry import LineString
 
 try:
     import fmm
-    from fmm import STMATCH, Network, NetworkGraph, STMATCHConfig
+    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
 except ImportError:
     ...
+
 
 class RoadNetwork:
     """
@@ -79,15 +80,25 @@ class RoadNetwork:
 
         stmatch_model = STMATCH(network, graph)
 
+        # ubodt_gen = fmm.UBODTGenAlgorithm(network, graph)
+
+        # ubodt_gen.generate_ubodt("ubodt.txt", 0.03, binary=False, use_omp=True)
+        # ubodt = fmm.UBODT.read_ubodt_csv("ubodt.txt")
+
+        # fmm_model = fmm.FastMapMatch(network, graph, ubodt)
+
         k = 16
         gps_error = 0.0005
         radius = 0.003
         vmax = 0.0003
         factor = 1.5
         stmatch_config = STMATCHConfig(k, radius, gps_error, vmax, factor)
+        # fmm_config = FastMapMatchConfig(k, radius, gps_error)
 
         input_config = fmm.GPSConfig()
-        input_config.file = "../datasets/trajectories/Porto/mapped_id_poly.csv"
+        input_config.file = (
+            "../datasets/trajectories/Porto/mapped_id_poly_clipped_2mil.csv"
+        )
         input_config.id = "id"
         input_config.geom = "POLYLINE"
         print(input_config.to_string())
