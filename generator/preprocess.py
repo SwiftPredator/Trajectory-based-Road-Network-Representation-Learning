@@ -59,6 +59,6 @@ def clip_trajectories(df: pd.DataFrame, bounds: np.array) -> gpd.GeoDataFrame:
 
 def filter_min_points(df: gpd.GeoDataFrame, min_gps_points: int) -> gpd.GeoDataFrame:
     df["coords"] = df["POLYLINE"].swifter.apply(lambda x: list(x.coords))
-    df = df[len(df["coords"]) >= min_gps_points]
+    df = df[df["coords"].str.len() >= min_gps_points]
 
     return df

@@ -1,15 +1,18 @@
 from dataclasses import dataclass, field
 
-import fmm
 import geopandas as gpd
 import networkx as nx
 import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
-from fmm import STMATCH, Network, NetworkGraph, STMATCHConfig
 from shapely.geometry import LineString
 
+try:
+    import fmm
+    from fmm import STMATCH, Network, NetworkGraph, STMATCHConfig
+except ImportError:
+    ...
 
 class RoadNetwork:
     """

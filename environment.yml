@@ -1,4 +1,4 @@
-name: road-emb
+name: road
 channels:
   - conda-forge
   - pytorch
@@ -6,12 +6,12 @@ channels:
 dependencies:
   - python=3.9
   - osmnx
+  - geopandas
   - pytorch=1.10.1
-  - cuda-toolkit=11.3
+  - cudatoolkit=11.3
   - numpy
   - shapely
   - swifter
-  - geopandas
   # - pip:
   #     - pdoc3
   #     - matplotlib
