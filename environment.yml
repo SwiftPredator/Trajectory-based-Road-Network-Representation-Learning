@@ -11,6 +11,7 @@ dependencies:
   - numpy
   - shapely
   - swifter
+  - geopandas
   # - pip:
   #     - pdoc3
   #     - matplotlib
