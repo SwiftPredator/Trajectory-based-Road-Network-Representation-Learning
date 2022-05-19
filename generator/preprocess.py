@@ -9,7 +9,6 @@ from shapely.geometry import LineString, box
 
 
 def preprocess_trajectories_porto(
-    self,
     df: pd.DataFrame,
     city_bounds: np.array,
     min_gps_points: int = 10,
@@ -26,7 +25,7 @@ def preprocess_trajectories_porto(
     if polyline_convert:
         df = convert_polyline(df, min_gps_points)
 
-    df = clip_trajectories(df, city_bounds)
+    df = clip_trajectories(df, city_bounds, polyline_convert=polyline_convert)
     df = filter_min_points(df, min_gps_points)
 
     return df
@@ -47,11 +46,11 @@ def convert_polyline(df: pd.DataFrame, min_gps_points: int) -> pd.DataFrame:
     return df
 
 
-def clip_trajectories(df: pd.DataFrame, bounds: np.array) -> gpd.GeoDataFrame:
+def clip_trajectories(df: pd.DataFrame, bounds: np.array, polyline_convert: bool = False) -> gpd.GeoDataFrame:
     bbox = box(*bounds)
     poly_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs="EPSG:4326")
-
-    df["POLYLINE"] = df["POLYLINE"].swifter.apply(wkt.loads)
+    if not polyline_convert:
+        df["POLYLINE"] = df["POLYLINE"].swifter.apply(wkt.loads)
     gdf = gpd.GeoDataFrame(df, crs="epsg:4326", geometry="POLYLINE")
 
     return gdf.clip(poly_gdf, keep_geom_type=True).explode(ignore_index=True)

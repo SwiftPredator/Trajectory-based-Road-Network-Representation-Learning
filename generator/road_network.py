@@ -97,10 +97,11 @@ class RoadNetwork:
 
         input_config = fmm.GPSConfig()
         input_config.file = (
-            "../datasets/trajectories/Porto/mapped_id_poly_clipped_2mil.csv"
+            "../datasets/trajectories/Porto/mapped_id_poly_clipped_timestamp.csv"
         )
         input_config.id = "id"
         input_config.geom = "POLYLINE"
+        input_config.timestamp = "timestamp"
         print(input_config.to_string())
 
         result_config = fmm.ResultConfig()
