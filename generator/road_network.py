@@ -73,7 +73,7 @@ class RoadNetwork:
         gdf_nodes.to_file(path + "/nodes.shp", encoding="utf-8")
         gdf_edges.to_file(path + "/edges.shp", encoding="utf-8")
 
-    def fmm_trajectorie_mapping(self):
+    def fmm_trajectorie_mapping(self, input_file: str, output_files: str):
 
         network = Network("../osm_data/porto/edges.shp", "fid", "u", "v")
         graph = NetworkGraph(network)
@@ -96,17 +96,17 @@ class RoadNetwork:
         # fmm_config = FastMapMatchConfig(k, radius, gps_error)
 
         input_config = fmm.GPSConfig()
-        input_config.file = (
-            "../datasets/trajectories/Porto/mapped_id_poly_clipped_timestamp.csv"
-        )
+        input_config.file = input_file
         input_config.id = "id"
         input_config.geom = "POLYLINE"
         input_config.timestamp = "timestamp"
         print(input_config.to_string())
 
         result_config = fmm.ResultConfig()
-        result_config.file = "../datasets/trajectories/Porto/road-segment-mapping.txt"
+        result_config.file = output_files
         result_config.output_config.write_opath = True
+        result_config.output_config.write_ogeom = True
+        result_config.output_config.write_pgeom = True
         result_config.output_config.write_spdist = True
         result_config.output_config.write_speed = True
         result_config.output_config.write_duration = True

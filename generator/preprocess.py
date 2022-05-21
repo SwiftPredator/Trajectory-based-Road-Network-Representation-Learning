@@ -1,9 +1,12 @@
+from ast import literal_eval
+
 import geopandas as gpd
 import networkx as nx
 import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
+from scipy.ndimage import shift
 from shapely import wkt
 from shapely.geometry import LineString, box
 
@@ -46,7 +49,9 @@ def convert_polyline(df: pd.DataFrame, min_gps_points: int) -> pd.DataFrame:
     return df
 
 
-def clip_trajectories(df: pd.DataFrame, bounds: np.array, polyline_convert: bool = False) -> gpd.GeoDataFrame:
+def clip_trajectories(
+    df: pd.DataFrame, bounds: np.array, polyline_convert: bool = False
+) -> gpd.GeoDataFrame:
     bbox = box(*bounds)
     poly_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs="EPSG:4326")
     if not polyline_convert:
@@ -59,5 +64,49 @@ def clip_trajectories(df: pd.DataFrame, bounds: np.array, polyline_convert: bool
 def filter_min_points(df: gpd.GeoDataFrame, min_gps_points: int) -> gpd.GeoDataFrame:
     df["coords"] = df["POLYLINE"].swifter.apply(lambda x: list(x.coords))
     df = df[df["coords"].str.len() >= min_gps_points]
+
+    return df
+
+
+"""
+Processing Part after gps points are mapped to road segments
+"""
+
+
+def remove_outlier_trajectories(
+    df: pd.DataFrame, min_edges_traversed: int = 3, max_speed: float = 1e1
+) -> pd.DataFrame:
+    df.dropna(inplace=True)
+    df["speed"] = df["speed"].swifter.apply(literal_eval)
+    df["speed_mean"] = df["speed"].swifter.apply(np.mean)
+    df["cpath"] = df["cpath"].swifter.apply(literal_eval)
+
+    # remove mean speed <= since mostly standing trajectories
+    # atleast 3 traversed edges & remove remaining zero average speed trajectories
+    df = df[(df["cpath"].str.len() >= min_edges_traversed) & (df["speed_mean"] > 0)]
+
+    # smooth trajectories that have inf speed values
+    def smooth_inf_and_neg_values(x):
+        temp = np.array(x)
+        # smoothing
+        masks = (temp >= max_speed, temp < 0)
+        for mask in masks:
+            shift_left, shift_right = shift(mask, -1, cval=0), shift(mask, 1, cval=0)
+            temp[mask] = np.sum((shift_right * temp) + shift_left * temp) / np.sum(
+                shift_right + shift_left
+            )
+
+        return temp
+
+    df[(df["speed_mean"] > max_speed)]["speed"] = df[(df["speed_mean"] > max_speed)][
+        "speed"
+    ].swifter.apply(smooth_inf_and_neg_values)
+    df["speed_mean"] = df["speed"].swifter.apply(np.mean)
+
+    # drop remaining inf trajectories which have more than two consectuive inf values
+    df = df[df["speed_mean"] < max_speed]
+
+    assert df[df["speed_mean"] <= 0].shape[0] == 0
+    assert df[df["speed_mean"] > max_speed].shape[0] == 0
 
     return df
