@@ -10,7 +10,8 @@ from shapely.geometry import LineString
 
 try:
     import fmm
-    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
+    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
+                     STMATCHConfig)
 except ImportError:
     ...
 
@@ -26,7 +27,7 @@ class RoadNetwork:
 
     def __init__(
         self,
-        location: str,
+        location: str = None,
         network_type: str = "roads",
         retain_all: bool = True,
         truncate_by_edge: bool = True,
@@ -40,13 +41,14 @@ class RoadNetwork:
             retain_all (bool, optional): _description_. Defaults to True.
             truncate_by_edge (bool, optional): _description_. Defaults to True.
         """
-        self.G = ox.graph_from_place(
-            location,
-            network_type=network_type,
-            retain_all=retain_all,
-            truncate_by_edge=truncate_by_edge,
-        )
-        self.gdf_nodes, self.gdf_edges = ox.graph_to_gdfs(self.G)
+        if location != None:
+            self.G = ox.graph_from_place(
+                location,
+                network_type=network_type,
+                retain_all=retain_all,
+                truncate_by_edge=truncate_by_edge,
+            )
+            self.gdf_nodes, self.gdf_edges = ox.graph_to_gdfs(self.G)
 
     def map_trajectorie(self, coordinates: gpd.GeoDataFrame):
         P = ox.project_graph(self.G)
@@ -72,6 +74,13 @@ class RoadNetwork:
 
         gdf_nodes.to_file(path + "/nodes.shp", encoding="utf-8")
         gdf_edges.to_file(path + "/edges.shp", encoding="utf-8")
+
+    def load(self, path):
+        self.gdf_nodes = gpd.read_file(path + "/nodes.shp")
+        self.gdf_edges = gpd.read_file(path + "/edges.shp")
+        self.gdf_nodes.set_index("osmid", inplace=True)
+        self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
+        self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
     def fmm_trajectorie_mapping(self, input_file: str, output_files: str):
 
