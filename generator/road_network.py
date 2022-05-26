@@ -7,11 +7,11 @@ import osmnx as ox
 import pandas as pd
 import swifter
 from shapely.geometry import LineString
+from sklearn.preprocessing import LabelEncoder
 
 try:
     import fmm
-    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
-                     STMATCHConfig)
+    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
 except ImportError:
     ...
 
@@ -80,6 +80,12 @@ class RoadNetwork:
         self.gdf_edges = gpd.read_file(path + "/edges.shp")
         self.gdf_nodes.set_index("osmid", inplace=True)
         self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
+
+        # encode highway column
+        self.gdf_edges["highway"] = self.gdf_edges["highway"].str.extract(r"(\w+)")
+        le = LabelEncoder()
+        self.gdf_edges["highway_enc"] = le.fit_transform(self.gdf_edges["highway"])
+
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
     def fmm_trajectorie_mapping(self, input_file: str, output_files: str):

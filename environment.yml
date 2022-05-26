@@ -7,11 +7,13 @@ dependencies:
   - python=3.9
   - osmnx
   - geopandas
-  - pytorch=1.10.1
-  - cudatoolkit=11.3
+  - pytorch::pytorch=1.11.0
+  - pytorch::cudatoolkit=11.3
   - numpy
   - shapely
   - swifter
+  - joblib
+  - gensim
   # - pip:
   #     - pdoc3
   #     - matplotlib
