@@ -11,7 +11,8 @@ from sklearn.preprocessing import LabelEncoder
 
 try:
     import fmm
-    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
+    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
+                     STMATCHConfig)
 except ImportError:
     ...
 
@@ -135,6 +136,10 @@ class RoadNetwork:
     @property
     def bounds(self):
         return self.gdf_nodes.geometry.total_bounds
+
+    @property
+    def line_graph(self):
+        return nx.line_graph(self.G, create_using=nx.DiGraph)
 
     def visualize():
         ...
