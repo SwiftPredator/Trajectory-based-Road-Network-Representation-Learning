@@ -2,13 +2,15 @@ name: road
 channels:
   - conda-forge
   - pytorch
+  - pyg
   - defaults
 dependencies:
   - python=3.9
   - osmnx
   - geopandas
   - pytorch::pytorch=1.11.0
-  - pytorch::cudatoolkit=11.3
+  - cudatoolkit=11.3
+  - pyg::pyg
   - numpy
   - shapely
   - swifter
