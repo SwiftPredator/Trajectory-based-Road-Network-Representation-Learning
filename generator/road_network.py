@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import List
 
 import geopandas as gpd
 import networkx as nx
@@ -6,8 +7,12 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
+import torch
+import torch_geometric.transforms as T
 from shapely.geometry import LineString
+from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder
+from torch_geometric.data import Data
 
 try:
     import fmm
@@ -140,6 +145,79 @@ class RoadNetwork:
     @property
     def line_graph(self):
         return nx.line_graph(self.G, create_using=nx.DiGraph)
+
+    def generate_road_segment_pyg_dataset(
+        self, traj_data: gpd.GeoDataFrame = None, drop_labels: List = []
+    ):
+        if traj_data:
+            # incorperate trajectorie data in form of speed and volume
+            ...
+
+        # create edge_index for line
+        LG = self.line_graph
+        # create edge_index
+        map_id = {j: i for i, j in enumerate(LG.nodes)}
+        edge_list = nx.to_pandas_edgelist(LG)
+        edge_list["sidx"] = edge_list["source"].map(map_id)
+        edge_list["tidx"] = edge_list["target"].map(map_id)
+
+        edge_index = np.array(edge_list[["sidx", "tidx"]].values).T
+        edge_index = torch.tensor(edge_index, dtype=torch.long).contiguous()
+
+        # create feature matrix
+        df = self.gdf_edges.copy()
+        df["idx"] = df.index.map(map_id)
+        df.sort_values(by="idx", axis=0, inplace=True)
+        df.drop(
+            [
+                "osmid",
+                "fid",
+                "geometry",
+                "highway",
+                "idx",
+                "name",
+                "ref",
+                "access",
+                "area",
+                "width",
+            ],
+            axis=1,
+            inplace=True,
+        )
+        df.reset_index(drop=True, inplace=True)
+        df["bridge"] = (
+            df["bridge"]
+            .fillna(0)
+            .replace(["yes", "viaduct", "['yes', 'viaduct']", "cantilever"], 1)
+        )
+        df["tunnel"] = (
+            df["tunnel"].fillna(0).replace(["yes", "building_passage", "culvert"], 1)
+        )
+        df["junction"] = df["junction"].fillna(0).replace(["roundabout", "circular"], 1)
+        df["lanes"] = df["lanes"].str.extract(r"(\w+)")
+        df["maxspeed"] = df["maxspeed"].str.extract(r"(\w+)")
+
+        imputer = KNNImputer(n_neighbors=2)
+        imputed = imputer.fit_transform(df)
+        df["lanes"] = imputed[:, 2].astype(int)
+        df["maxspeed"] = imputed[:, 3].astype(int)
+
+        df.drop(drop_labels, axis=1, inplace=True)  # drop label?
+
+        features = torch.DoubleTensor(np.array(df.values, dtype=np.double))
+
+        # create pyg dataset
+        data = Data(x=features, edge_index=edge_index)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        transform = T.Compose(
+            [
+                T.NormalizeFeatures(),
+                T.ToDevice(device),
+            ]
+        )
+        data = transform(data)
+
+        return data
 
     def visualize():
         ...
