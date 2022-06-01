@@ -16,8 +16,7 @@ from torch_geometric.data import Data
 
 try:
     import fmm
-    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
-                     STMATCHConfig)
+    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
 except ImportError:
     ...
 

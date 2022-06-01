@@ -28,6 +28,12 @@ class Evaluation:
                 df.to_csv(save_dir + "/" + name + ".csv")
         return res
 
+    def train(self, margs: Dict, save_parent_dir="../model_states/"):
+        for n, (m, args) in (self.models, margs).items():
+            m.train(**args)
+            m.save_model(save_parent_dir+n+"/")
+            m.save_emb(save_parent_dir+n+"/")
+
     def register_model(self, name, model):
         """
         Register Model for Evaluation.

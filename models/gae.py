@@ -10,46 +10,52 @@ from .model import Model
 
 
 class GAEModel(Model):
-    def __init__(self, in_dim, out_dim, device):
-        self.model = GAE(GCNEncoder(in_dim, out_dim))  # feature dim, emb dim
+    def __init__(self, data, device, emb_dim=128):
+        self.model = GAE(GCNEncoder(data.x.shape[1], emb_dim))  # feature dim, emb dim
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.model = self.model.to(device)
-        self.emb = None
         self.device = device
+        self.train_data = data
+        self.train_data = self.train_data.to(device)
 
-    def train(self, train_data, epochs: int = 10):
+    def train(self, epochs: int = 1000):
         avg_loss = 0
         for e in range(epochs):
             self.model.train()
             self.optimizer.zero_grad()
-            z = self.model.encode(train_data.x, train_data.edge_index)
-            loss = self.model.recon_loss(z, train_data.edge_index)
+            z = self.model.encode(self.train_data.x, self.train_data.edge_index)
+            loss = self.model.recon_loss(z, self.train_data.edge_index)
             loss.backward()
             self.optimizer.step()
             avg_loss += loss.item()
 
             if e > 0 and e % 100 == 0:
                 print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
-        self.emb = (
-            self.model.encode(train_data.x, train_data.edge_index)
-            .detach()
-            .cpu()
-            .numpy()
-        )
 
-    def save_model(self, save_name, path="save/"):
-        torch.save(self.model.state_dict(), path + save_name)
+    def save_model(self, path="save/"):
+        torch.save(self.model.state_dict(), path + "model.pt")
 
     def load_model(self, model_path):
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
 
     def save_emb(self, path):
-        np.savetxt(path + "embedding.out", X=self.emb)
+        np.savetxt(
+            path + "embedding.out",
+            X=self.model.encode(self.train_data.x, self.train_data.edge_index)
+            .detach()
+            .cpu()
+            .numpy(),
+        )
 
     def load_emb(self, path=None):
         if path:
-            self.emb = np.loadtxt(path)
-        return self.emb
+            return np.loadtxt(path)
+        return (
+            self.model.encode(self.train_data.x, self.train_data.edge_index)
+            .detach()
+            .cpu()
+            .numpy()
+        )
 
 
 class GCNEncoder(nn.Module):

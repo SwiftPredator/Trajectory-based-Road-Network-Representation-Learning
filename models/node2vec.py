@@ -9,7 +9,15 @@ from .model import Model
 
 class Node2VecModel(Model):
     def __init__(
-        self, data, device, emb_dim=128, walk_length=30, walks_per_node=25, context_size=5
+        self,
+        data,
+        device,
+        emb_dim=128,
+        walk_length=30,
+        walks_per_node=25,
+        context_size=5,
+        q=1,
+        p=1,
     ):
         self.model = Node2Vec(
             data.edge_index,
@@ -17,9 +25,9 @@ class Node2VecModel(Model):
             walk_length=walk_length,
             context_size=context_size,
             walks_per_node=walks_per_node,
-            num_negative_samples=1,
-            p=1,
-            q=1,
+            num_negative_samples=10,
+            p=p,
+            q=q,
             sparse=True,
         ).to(device)
         self.loader = self.model.loader(batch_size=128, shuffle=True, num_workers=4)
@@ -39,11 +47,11 @@ class Node2VecModel(Model):
                 self.optimizer.step()
                 total_loss += loss.item()
             avg_loss += total_loss / len(self.loader)
-            if e > 0 and e % 10 == 0:
+            if e > 0 and e % 20 == 0:
                 print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
 
-    def save_model(self, save_name, path="save/"):
-        torch.save(self.model.state_dict(), path + save_name)
+    def save_model(self, path="save/"):
+        torch.save(self.model.state_dict(), path + "model.pt")
 
     def load_model(self, model_path):
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
