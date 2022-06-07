@@ -7,7 +7,7 @@ from datetime import datetime
 import pandas as pd
 import torch
 
-module_path = os.path.abspath(os.path.join("../.."))
+module_path = os.path.abspath(os.path.join(".."))
 if module_path not in sys.path:
     sys.path.append(module_path)
 
@@ -20,8 +20,7 @@ from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-
-from .tasks import RoadTypeClfTask
+from tasks import RoadTypeClfTask, TravelTimeEstimation
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -44,13 +43,15 @@ def generate_dataset(args):
         pyg Data: Dataset as pyg Data Object with x and edge_index
     """
     network = RoadNetwork()
-    network.load("../../osm_data/porto")
-    trajectory = Trajectory("../datasets/trajectories/Porto/road_segment_map_final.csv")
+    network.load("../osm_data/porto")
+    trajectory = Trajectory(
+        "../datasets/trajectories/Porto/road_segment_map_final.csv", nrows=args["nrows"]
+    )
     traj_dataset = trajectory.generate_TTE_datatset()
 
     if args["speed"]:
         traj_features = pd.read_csv(
-            "../../datasets/trajectories/Porto/speed_features_unnormalized.csv"
+            "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
         traj_features["util"] = (
             traj_features["util"] - traj_features["util"].min()
@@ -105,21 +106,24 @@ def init_roadclf(network):
     return roadclf
 
 
-# def init_traveltime(traj_data, network):
-#     travel_time_est = TravelTimeEstimation(
-#         traj_dataset=traj_data, network=network, device=device, batch_size=128
-#     )
-#     travel_time_est.register_metric(
-#         name="MSE", metric_func=metrics.mean_squared_error, args={}
-#     )
-#     travel_time_est.register_metric(
-#         name="MAE", metric_func=metrics.mean_absolute_error, args={}
-#     )
-#     travel_time_est.register_metric(
-#         name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
-#     )
+def init_traveltime(args, traj_data, network, device):
+    travel_time_est = TravelTimeEstimation(
+        traj_dataset=traj_data, network=network, device=device, batch_size=128, epochs=args["epochs"]
+    )
+    travel_time_est.register_metric(
+        name="MSE", metric_func=metrics.mean_squared_error, args={}
+    )
+    travel_time_est.register_metric(
+        name="MAE", metric_func=metrics.mean_absolute_error, args={}
+    )
+    travel_time_est.register_metric(
+        name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
+    )
+    travel_time_est.register_metric(
+        name="MAPE", metric_func=metrics.mean_absolute_percentage_error, args={}
+    )
 
-#     return travel_time_est
+    return travel_time_est
 
 
 def evaluate_model(args, data, network, trajectory):
@@ -140,12 +144,13 @@ def evaluate_model(args, data, network, trajectory):
     data = transform(data)
     models = [m for m in args["models"].split(",")]
     tasks = [t for t in args["tasks"].split(",")]
-    model, margs = model_map[args["model"]]
-    model = model(data, device=device, emb_dim=args["embedding"], **margs)
     eva = Evaluation()
 
     if "roadclf" in tasks:
         eva.register_task("roadclf", init_roadclf(network))
+
+    if "traveltime" in tasks:
+        eva.register_task("timetravel", init_traveltime(args, trajectory, network, device))
 
     for m in models:
         model, margs = model_map[m]
@@ -155,11 +160,7 @@ def evaluate_model(args, data, network, trajectory):
 
     path = os.path.join(
         args["path"],
-        args["model"]
-        + "_"
-        + str(args["epochs"])
-        + "_"
-        + str(datetime.now().strftime("%m-%d-%Y-%H-%M")),
+        str(datetime.now().strftime("%m-%d-%Y-%H-%M")),
     )
     os.mkdir(path)
 

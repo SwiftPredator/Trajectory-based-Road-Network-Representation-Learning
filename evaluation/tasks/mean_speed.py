@@ -9,7 +9,7 @@ from sklearn.model_selection import cross_val_score
 from .task import Task
 
 
-class RoadTypeClfTask(Task):
+class MeanSpeedRegTask(Task):
     def __init__(self, decoder, y):
         self.decoder = decoder
         self.metrics = {}

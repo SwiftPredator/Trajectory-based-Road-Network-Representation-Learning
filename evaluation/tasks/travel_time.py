@@ -19,7 +19,13 @@ class TravelTimeEstimation(Task):
     """
 
     def __init__(
-        self, traj_dataset, network, device, emb_dim: int = 128, batch_size: int = 128
+        self,
+        traj_dataset,
+        network,
+        device,
+        emb_dim: int = 128,
+        batch_size: int = 128,
+        epochs: int = 10,
     ):
         self.metrics = {}
         self.data = traj_dataset
@@ -27,6 +33,7 @@ class TravelTimeEstimation(Task):
         self.emb_dim = emb_dim
         self.device = device
         self.batch_size = batch_size
+        self.epochs = epochs
         # make a train test split on trajectorie data
         train, test = model_selection.train_test_split(
             self.data, test_size=0.2, random_state=1
@@ -45,11 +52,11 @@ class TravelTimeEstimation(Task):
 
     def evaluate(self, emb: np.ndarray):
         model = TTE_LSTM(
-            device=self.device, emb_dim=self.emb_dim, batch_size=self.batch_size
+            device=self.device, emb_dim=emb.shape[1], batch_size=self.batch_size
         )
 
         # train on x trajectories
-        model.train_model(loader=self.train_loader, emb=emb)
+        model.train_model(loader=self.train_loader, emb=emb, epochs=self.epochs)
 
         # eval on rest
         yh, y = model.predict(loader=self.eval_loader, emb=emb)
@@ -108,9 +115,9 @@ class TTE_Dataset(Dataset):
         ]
 
         # pad
-        data = torch.nn.utils.rnn.pad_sequence(data, padding_value=-1, batch_first=True)
+        data = torch.nn.utils.rnn.pad_sequence(data, padding_value=0, batch_first=True)
         # compute mask
-        mask = data != -1
+        mask = data != 0
 
         return data, torch.Tensor(label), lengths, mask, map[0]
 
@@ -120,14 +127,20 @@ class TTE_LSTM(nn.Module):
         self,
         device,
         emb_dim: int = 128,
-        hidden_units: int = 256,
-        layers: int = 1,
+        hidden_units: int = 512,
+        layers: int = 2,
         batch_size: int = 128,
     ):
         super(TTE_LSTM, self).__init__()
-        self.encoder = nn.LSTM(emb_dim, hidden_units, batch_first=True)
+        self.encoder = nn.LSTM(
+            emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
+        )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units), nn.ReLU(), nn.Linear(hidden_units, 1)
+            nn.Linear(hidden_units, hidden_units * 2),
+            nn.ReLU(),
+            nn.Linear(hidden_units * 2, hidden_units),
+            nn.ReLU(),
+            nn.Linear(hidden_units, 1),
         )
         self.hidden_units = hidden_units
         self.layers = layers
@@ -147,31 +160,28 @@ class TTE_LSTM(nn.Module):
 
         x, self.hidden = self.encoder(x, self.hidden)
 
-        x, _ = torch.nn.utils.rnn.pad_packed_sequence(
-            x, batch_first=True, padding_value=-1
+        x, plengths = torch.nn.utils.rnn.pad_packed_sequence(
+            x, batch_first=True, padding_value=0
         )
-        x = x.contiguous()
-        x = x.view(-1, x.shape[2])
+        x = x.contiguous()  # batch x seq x hidden
+        # x = x.view(-1, x.shape[2])
+        x = torch.stack(
+            [x[b, plengths[b] - 1] for b in range(batch_size)]
+        )  # get last valid item per batch batch x hidden
+
         yh = self.decoder(x)
 
-        yh = yh.view(batch_size, seq_len, -1)
-
-        return yh  # (batch x seq x 1)
+        return yh  # (batch x 1)
 
     def train_model(self, loader, emb, epochs=100):
         self.train()
         for e in range(epochs):
             total_loss = 0
-            for X, y, lengths, mask, map in tqdm(loader):
+            for X, y, lengths, mask, map in loader:
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
                 y = y.to(self.device)
-                yh = self.forward(emb_batch, lengths).view(-1, 1)
-                label_pos = (lengths - 1) + torch.arange(
-                    0, emb_batch.shape[0]
-                ) * lengths[0]
-                yh = yh[label_pos]
-                # print(yh.shape, y.shape)
+                yh = self.forward(emb_batch, lengths)
                 loss = self.loss(yh.squeeze(), y)
 
                 self.opt.zero_grad()
@@ -179,18 +189,16 @@ class TTE_LSTM(nn.Module):
                 self.opt.step()
                 total_loss += loss.item()
 
-            # print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
+            print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
 
     def predict(self, loader, emb):
         self.eval()
         yhs, ys = [], []
-        for X, y, lengths, mask, map in tqdm(loader):
+        for X, y, lengths, mask, map in loader:
             emb_batch = self.get_embedding(emb, X.clone(), mask, map)
             emb_batch = emb_batch.to(self.device)
             y = y.to(self.device)
-            yh = self.forward(emb_batch, lengths).view(-1, 1)
-            label_pos = (lengths - 1) + torch.arange(0, emb_batch.shape[0]) * lengths[0]
-            yh = yh[label_pos]
+            yh = self.forward(emb_batch, lengths)
             yhs.extend(yh.tolist())
             ys.extend(y.tolist())
 
@@ -212,17 +220,8 @@ class TTE_LSTM(nn.Module):
         """
         Transform batch_size, seq_length, 1 to batch_size, seq_length, emb_size
         """
-        res = batch.unsqueeze(-1).repeat(1, 1, emb.shape[1]).float()
+        res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[1]))
         for i, seq in enumerate(batch):
-            # transform sequence
-            # map from trajectory id to embedding id
-            # edge_ids = np.array(
-            #     network.gdf_edges.iloc[seq[mask[i]]].index, dtype="i,i,i"
-            # )
-            # node_ids = np.array(network.line_graph.nodes, dtype="i,i,i")
-            # # emb_ids = [np.where(eid == node_ids)[0][0] for eid in edge_ids]
-            # # print(seq, edge_ids, emb_ids)
-            # sort_idx = node_ids.argsort()
             emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
             res[i, mask[i], :] = torch.Tensor(emb[emb_ids, :]).float()
 
