@@ -15,12 +15,11 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    Toast)
+from models import GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel, Toast
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import RoadTypeClfTask, TravelTimeEstimation
+from tasks import MeanSpeedRegTask, RoadTypeClfTask, TravelTimeEstimation
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -108,7 +107,11 @@ def init_roadclf(network):
 
 def init_traveltime(args, traj_data, network, device):
     travel_time_est = TravelTimeEstimation(
-        traj_dataset=traj_data, network=network, device=device, batch_size=128, epochs=args["epochs"]
+        traj_dataset=traj_data,
+        network=network,
+        device=device,
+        batch_size=128,
+        epochs=args["epochs"],
     )
     travel_time_est.register_metric(
         name="MSE", metric_func=metrics.mean_squared_error, args={}
@@ -124,6 +127,31 @@ def init_traveltime(args, traj_data, network, device):
     )
 
     return travel_time_est
+
+
+def init_meanspeed(network):
+    tf = pd.read_csv("../datasets/trajectories/Porto/speed_features_unnormalized.csv")
+    map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
+    tf["idx"] = tf.index.map(map_id)
+    tf.sort_values(by="idx", axis=0, inplace=True)
+    decoder = linear_model.LinearRegression(fit_intercept=True)
+    y = tf["avg_speed"].to_numpy()
+    mean_speed_reg = MeanSpeedRegTask(decoder, y)
+
+    mean_speed_reg.register_metric(
+        name="MSE", metric_func=metrics.mean_squared_error, args={}
+    )
+    mean_speed_reg.register_metric(
+        name="MAE", metric_func=metrics.mean_absolute_error, args={}
+    )
+    mean_speed_reg.register_metric(
+        name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
+    )
+    mean_speed_reg.register_metric(
+        name="MAPE", metric_func=metrics.mean_absolute_percentage_error, args={}
+    )
+
+    return mean_speed_reg
 
 
 def evaluate_model(args, data, network, trajectory):
@@ -150,7 +178,12 @@ def evaluate_model(args, data, network, trajectory):
         eva.register_task("roadclf", init_roadclf(network))
 
     if "traveltime" in tasks:
-        eva.register_task("timetravel", init_traveltime(args, trajectory, network, device))
+        eva.register_task(
+            "timetravel", init_traveltime(args, trajectory, network, device)
+        )
+
+    if "meanspeed" in tasks:
+        eva.register_task("meanspeed", init_meanspeed())
 
     for m in models:
         model, margs = model_map[m]

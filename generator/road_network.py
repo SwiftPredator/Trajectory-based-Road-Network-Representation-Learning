@@ -11,7 +11,7 @@ import torch
 import torch_geometric.transforms as T
 from shapely.geometry import LineString
 from sklearn.impute import KNNImputer
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from torch_geometric.data import Data
 
 try:
@@ -55,17 +55,6 @@ class RoadNetwork:
             )
             self.gdf_nodes, self.gdf_edges = ox.graph_to_gdfs(self.G)
 
-    def map_trajectorie(self, coordinates: gpd.GeoDataFrame):
-        P = ox.project_graph(self.G)
-        B = ox.project_gdf(coordinates)
-
-        X = B.geometry.apply(lambda c: c.centroid.x)
-        Y = B.geometry.apply(lambda c: c.centroid.y)
-
-        mapping = ox.nearest_edges(P, X, Y, return_dist=True)
-
-        print(mapping[:10])
-
     def save(self, path: str):
         """
         Save road network as node and edge shape file.
@@ -81,6 +70,9 @@ class RoadNetwork:
         gdf_edges.to_file(path + "/edges.shp", encoding="utf-8")
 
     def load(self, path):
+        """
+        Load graph from edges and nodes shape file
+        """
         self.gdf_nodes = gpd.read_file(path + "/nodes.shp")
         self.gdf_edges = gpd.read_file(path + "/edges.shp")
         self.gdf_nodes.set_index("osmid", inplace=True)
@@ -93,9 +85,14 @@ class RoadNetwork:
 
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
-    def fmm_trajectorie_mapping(self, input_file: str, output_files: str):
+    def fmm_trajectorie_mapping(
+        self, network_file: str, input_file: str, output_files: str
+    ):
+        """
+        Maps raw trajectory gps data to corresponding road segments on the osmnx graph
+        """
 
-        network = Network("../osm_data/porto/edges.shp", "fid", "u", "v")
+        network = Network(network_file, "fid", "u", "v")
         graph = NetworkGraph(network)
 
         stmatch_model = STMATCH(network, graph)
@@ -148,10 +145,11 @@ class RoadNetwork:
     def generate_road_segment_pyg_dataset(
         self, traj_data: gpd.GeoDataFrame = None, drop_labels: List = []
     ):
-        if traj_data:
-            # incorperate trajectorie data in form of speed and volume
-            ...
-
+        """
+        Generates road segment feature dataset in the pyg Data format.
+        if traj_data given it will also generate trajectory based features
+        like avg. speed and avg. utilization on each road segment
+        """
         # create edge_index for line
         LG = self.line_graph
         # create edge_index
@@ -167,10 +165,18 @@ class RoadNetwork:
         df = self.gdf_edges.copy()
         df["idx"] = df.index.map(map_id)
         df.sort_values(by="idx", axis=0, inplace=True)
+
+        df.rename(columns={"fid": "id"}, inplace=True)
+        if traj_data is not None:
+            # incorperate trajectorie data in form of speed and volume
+            df = df.join(traj_data.set_index("id"), on="id")
+
+        # print(df.head())
+
         df.drop(
             [
                 "osmid",
-                "fid",
+                "id",
                 "geometry",
                 "highway",
                 "idx",
@@ -196,22 +202,31 @@ class RoadNetwork:
         df["lanes"] = df["lanes"].str.extract(r"(\w+)")
         df["maxspeed"] = df["maxspeed"].str.extract(r"(\w+)")
 
-        imputer = KNNImputer(n_neighbors=2)
+        imputer = KNNImputer(n_neighbors=1)
         imputed = imputer.fit_transform(df)
         df["lanes"] = imputed[:, 2].astype(int)
         df["maxspeed"] = imputed[:, 3].astype(int)
 
         df.drop(drop_labels, axis=1, inplace=True)  # drop label?
 
-        features = torch.DoubleTensor(np.array(df.values, dtype=np.double))
+        # normalize continiuos features
+        df["length"] = (df["length"] - df["length"].min()) / (
+            df["length"].max() - df["length"].min()
+        )  # min max normalization
 
+        # Categorical features one hot encoding
+        df = pd.get_dummies(
+            df, columns=["highway_enc", "lanes", "maxspeed"], drop_first=True
+        )
+        # print(df.head(), df.shape)
+
+        features = torch.DoubleTensor(np.array(df.values, dtype=np.double))
+        # print(features)
         # create pyg dataset
         data = Data(x=features, edge_index=edge_index)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         transform = T.Compose(
             [
                 T.NormalizeFeatures(),
-                T.ToDevice(device),
             ]
         )
         data = transform(data)
