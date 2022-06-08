@@ -52,6 +52,7 @@ def generate_dataset(args):
         traj_features = pd.read_csv(
             "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
+        traj_features.set_index(["u", "v", "key"], inplace=True)
         traj_features["util"] = (
             traj_features["util"] - traj_features["util"].min()
         ) / (
@@ -73,6 +74,7 @@ def generate_dataset(args):
         return network, traj_dataset, network.generate_road_segment_pyg_dataset()
 
 
+# index is correct
 def init_roadclf(network):
     decoder = linear_model.LogisticRegression(multi_class="multinomial", max_iter=1000)
     y = np.array(
@@ -129,13 +131,17 @@ def init_traveltime(args, traj_data, network, device):
     return travel_time_est
 
 
+# label index is right here;
 def init_meanspeed(network):
     tf = pd.read_csv("../datasets/trajectories/Porto/speed_features_unnormalized.csv")
+    tf.set_index(["u", "v", "key"], inplace=True)
     map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
     tf["idx"] = tf.index.map(map_id)
     tf.sort_values(by="idx", axis=0, inplace=True)
     decoder = linear_model.LinearRegression(fit_intercept=True)
-    y = tf["avg_speed"].to_numpy()
+    y = tf["avg_speed"]
+    y.fillna(0, inplace=True)
+    y = y.round(2)
     mean_speed_reg = MeanSpeedRegTask(decoder, y)
 
     mean_speed_reg.register_metric(
@@ -146,9 +152,6 @@ def init_meanspeed(network):
     )
     mean_speed_reg.register_metric(
         name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
-    )
-    mean_speed_reg.register_metric(
-        name="MAPE", metric_func=metrics.mean_absolute_percentage_error, args={}
     )
 
     return mean_speed_reg
@@ -183,7 +186,7 @@ def evaluate_model(args, data, network, trajectory):
         )
 
     if "meanspeed" in tasks:
-        eva.register_task("meanspeed", init_meanspeed())
+        eva.register_task("meanspeed", init_meanspeed(network))
 
     for m in models:
         model, margs = model_map[m]
