@@ -61,25 +61,23 @@ class Trajectory:
         Returns:
             pd.DataFrame: features in shape num_edges x features
         """
-        rdf = pd.DataFrame({"id": np.arange(network.gdf_edges.shape[0])})
+        rdf = pd.DataFrame({"id": network.gdf_edges.fid}, index=network.gdf_edges.index)
+        print(rdf.head())
         # calculate utilization on each edge which is defined as the count an edge is traversed by all trajectories
         seg_seqs = self.df["cpath"].values
         counter = Counter()
         for seq in seg_seqs:
             counter.update(Counter(seq))
 
-        rdf["util"] = rdf.index.map(counter)
+        rdf["util"] = rdf.id.map(counter)
+
         # rdf["util"] = (rdf["util"] - rdf["util"].min()) / (
         #    rdf["util"].max() - rdf["util"].min()
         # )  # min max normalization
 
-        # print(rdf["util"].describe())
-        # print(rdf[rdf["util"] == 0])
-
         # generate average speed feature
         # little bit complicater
 
-        # print(self.df["opath"][0], self.df["cpath"][0])
         # key: edge_id, value: tuple[speed, count]
         cpaths = self.df["cpath"].values
         opaths = self.df["opath"].values
@@ -107,7 +105,7 @@ class Trajectory:
                 )
                 last_lidx, last_ridx = lidx, ridx
 
-        rdf["avg_speed"] = rdf.index.map(
+        rdf["avg_speed"] = rdf.id.map(
             {
                 k: (float(speed_counter[k]) / count_counter[k]) * 111000 * 3.6
                 for k in speed_counter

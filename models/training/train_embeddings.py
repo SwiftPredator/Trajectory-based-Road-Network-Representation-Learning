@@ -14,7 +14,8 @@ if module_path not in sys.path:
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork
-from models import GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel, Toast
+from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
+                    Toast)
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -43,6 +44,7 @@ def generate_dataset(args):
         traj_features = pd.read_csv(
             "../../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
+        traj_features.set_index(["u", "v", "key"], inplace=True)
         traj_features["util"] = (
             traj_features["util"] - traj_features["util"].min()
         ) / (

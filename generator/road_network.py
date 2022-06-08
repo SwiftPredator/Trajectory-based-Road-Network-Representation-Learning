@@ -64,7 +64,9 @@ class RoadNetwork:
         gdf_nodes, gdf_edges = ox.graph_to_gdfs(self.G)
         gdf_nodes = ox.io._stringify_nonnumeric_cols(gdf_nodes)
         gdf_edges = ox.io._stringify_nonnumeric_cols(gdf_edges)
-        gdf_edges["fid"] = np.arange(0, gdf_edges.shape[0], dtype="int")
+        gdf_edges["fid"] = np.arange(
+            0, gdf_edges.shape[0], dtype="int"
+        )  # id for each edge
 
         gdf_nodes.to_file(path + "/nodes.shp", encoding="utf-8")
         gdf_edges.to_file(path + "/edges.shp", encoding="utf-8")
@@ -169,7 +171,8 @@ class RoadNetwork:
         df.rename(columns={"fid": "id"}, inplace=True)
         if traj_data is not None:
             # incorperate trajectorie data in form of speed and volume
-            df = df.join(traj_data.set_index("id"), on="id")
+            traj_data.drop(["id"], axis=1, inplace=True)
+            df = df.join(traj_data)
 
         # print(df.head())
 

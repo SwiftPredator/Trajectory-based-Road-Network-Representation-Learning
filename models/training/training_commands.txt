@@ -1,0 +1,6 @@
+--- TOAST ---
+python -u train_embeddings.py -m toast -e 50 -s 0 -emb 128 -p ../model_states/toast/ -d 1
+--- GAEGCN ---
+python -u train_embeddings.py -m gaegcn -e 50000 -s 1 -emb 128 -p ../model_states/gaegcn/ -d 1
+--- GAEGAT ---
+python -u train_embeddings.py -m gaegat -e 50000 -s 1 -emb 128 -p ../model_states/gaegat/ -d 1

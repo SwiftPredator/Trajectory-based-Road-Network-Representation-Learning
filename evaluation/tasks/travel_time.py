@@ -83,15 +83,21 @@ class TTE_Dataset(Dataset):
     def __getitem__(self, idx):
         return torch.tensor(self.X[idx], dtype=int), self.y[idx], self.map
 
+    # tested index mapping is correct
     def create_edge_emb_mapping(self):
         # map from trajectory edge id to embedding id
-        edge_ids = np.array(self.network.gdf_edges.index, dtype="i,i,i")
-        traj_edge_idx = np.array(self.network.gdf_edges.fid)
-        node_ids = np.array(self.network.line_graph.nodes, dtype="i,i,i")
-        sort_idx = node_ids.argsort()
-        emb_ids = sort_idx[np.searchsorted(node_ids, edge_ids, sorter=sort_idx)]
+        # edge_ids = np.array(self.network.gdf_edges.index, dtype="i,i,i")
+        # traj_edge_idx = np.array(self.network.gdf_edges.fid)
+        # node_ids = np.array(self.network.line_graph.nodes, dtype="i,i,i")
+        # sort_idx = node_ids.argsort()
+        # emb_ids = sort_idx[np.searchsorted(node_ids, edge_ids, sorter=sort_idx)]
+        # map = dict(zip(traj_edge_idx, emb_ids))
 
-        map = dict(zip(traj_edge_idx, emb_ids))
+        map = {}
+        nodes = list(self.network.line_graph.nodes)
+        for index, id in zip(self.network.gdf_edges.index, self.network.gdf_edges.fid):
+            map[id] = nodes.index(index)
+        # print(map == map2) # yields true
 
         return map
 
@@ -113,6 +119,12 @@ class TTE_Dataset(Dataset):
                 zip(lengths_old.tolist(), data), key=lambda pair: pair[0], reverse=True
             )
         ]
+        label = [
+            x
+            for _, x in sorted(
+                zip(lengths_old.tolist(), label), key=lambda pair: pair[0], reverse=True
+            )
+        ]
 
         # pad
         data = torch.nn.utils.rnn.pad_sequence(data, padding_value=0, batch_first=True)
@@ -127,8 +139,8 @@ class TTE_LSTM(nn.Module):
         self,
         device,
         emb_dim: int = 128,
-        hidden_units: int = 512,
-        layers: int = 2,
+        hidden_units: int = 256,
+        layers: int = 1,
         batch_size: int = 128,
     ):
         super(TTE_LSTM, self).__init__()
@@ -158,7 +170,7 @@ class TTE_LSTM(nn.Module):
 
         x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
 
-        x, self.hidden = self.encoder(x, self.hidden)
+        x, _ = self.encoder(x)
 
         x, plengths = torch.nn.utils.rnn.pad_packed_sequence(
             x, batch_first=True, padding_value=0

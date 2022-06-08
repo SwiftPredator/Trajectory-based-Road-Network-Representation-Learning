@@ -53,8 +53,8 @@ class Node2VecModel(Model):
     def save_model(self, path="save/"):
         torch.save(self.model.state_dict(), path + "model.pt")
 
-    def load_model(self, model_path):
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location=self.device))
 
     def save_emb(self, path):
         np.savetxt(path + "embedding.out", X=self.model().detach().cpu().numpy())
