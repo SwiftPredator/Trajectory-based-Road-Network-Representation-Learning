@@ -15,7 +15,8 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel, Toast
+from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
+                    Toast)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
@@ -190,6 +191,8 @@ def evaluate_model(args, data, network, trajectory):
 
     for m in models:
         model, margs = model_map[m]
+        if m == "toast":
+            margs["network"] = network
         model = model(data, device=device, **margs)
         model.load_model(path=os.path.join("../models/model_states", m, "model.pt"))
         eva.register_model(m, model)
