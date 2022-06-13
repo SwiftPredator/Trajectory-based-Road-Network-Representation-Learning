@@ -14,8 +14,7 @@ if module_path not in sys.path:
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork
-from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    Toast)
+from models import GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel, Toast
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -40,7 +39,7 @@ def generate_dataset(args):
     network = RoadNetwork()
     network.load("../../osm_data/porto")
 
-    if args["speed"]:
+    if args["speed"] == 1:
         traj_features = pd.read_csv(
             "../../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
@@ -61,6 +60,7 @@ def generate_dataset(args):
             traj_data=traj_features
         )
     else:
+        print("without")
         return network, network.generate_road_segment_pyg_dataset()
 
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         "-s",
         "--speed",
         help="Include speed features (true or false)",
-        type=bool,
+        type=int,
         default=False,
     )
     parser.add_argument(
