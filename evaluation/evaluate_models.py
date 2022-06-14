@@ -16,7 +16,7 @@ import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
 from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    Toast)
+                    SRN2VecModel, Toast)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
@@ -29,6 +29,7 @@ model_map = {
     "deepwalk": (Node2VecModel, {"q": 1, "p": 1}),
     "pca": (PCAModel, {}),
     "toast": (Toast, {}),
+    "srn2vec": (SRN2VecModel, {})
 }
 
 
@@ -49,7 +50,7 @@ def generate_dataset(args):
     )
     traj_dataset = trajectory.generate_TTE_datatset()
 
-    if args["speed"]:
+    if args["speed"] == 1:
         traj_features = pd.read_csv(
             "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
@@ -72,6 +73,7 @@ def generate_dataset(args):
             network.generate_road_segment_pyg_dataset(traj_data=traj_features),
         )
     else:
+        print("without speed")
         return network, traj_dataset, network.generate_road_segment_pyg_dataset()
 
 
@@ -191,7 +193,7 @@ def evaluate_model(args, data, network, trajectory):
 
     for m in models:
         model, margs = model_map[m]
-        if m == "toast":
+        if m == "toast" or m == "srn2vec":
             margs["network"] = network
         model = model(data, device=device, **margs)
         model.load_model(path=os.path.join("../models/model_states", m, "model.pt"))
@@ -224,9 +226,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--speed",
-        help="Include speed features (true or false)",
-        type=bool,
-        default=False,
+        help="Include speed features (1 or 0)",
+        type=int,
+        default=0,
     )
     parser.add_argument(
         "-p",

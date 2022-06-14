@@ -22,12 +22,13 @@ from .model import Model
 class SRN2VecModel(Model):
     def __init__(
         self,
-        data,
+        data,  # placeholder
         device,
         network,
         emb_dim: int = 128,
     ):
         """
+        Initialize SRN2Vec
         Args:
             data (_type_): placeholder
             device (_type_): torch device
@@ -36,12 +37,45 @@ class SRN2VecModel(Model):
         """
         self.device = device
         self.emb_dim = emb_dim
-        self.model = SRN2Vec(network, emb_dim)
-        self.optim = torch.optim.Adam(self.model.parameters(), lr=0.01)
+        self.model = SRN2Vec(network, device=device, emb_dim=emb_dim, out_dim=2)
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_func = nn.BCELoss()
         self.network = network
+        # self.data = data
 
-        # self.loader = DataLoader()
+    def train(self, epochs: int = 1000, batch_size: int = 128):
+        """
+        Train the SRN2Vec Model (load dataset before with .load_data())
+        Args:
+            epochs (int, optional): epochs to train. Defaults to 1000.
+            batch_size (int, optional): batch_size. Defaults to 128.
+        """
+        self.model.to(self.device)
+        loader = DataLoader(
+            SRN2VecDataset(self.data, len(self.network.line_graph.nodes)),
+            batch_size=batch_size,
+            shuffle=True,
+        )
+        for e in range(epochs):
+            self.model.train()
+            total_loss = 0
+            for i, (X, y) in enumerate(loader):
+                X = X.to(self.device)
+                y = y.to(self.device)
+
+                self.optim.zero_grad()
+                yh = self.model(X)
+                loss = self.loss_func(yh.squeeze(), y)
+
+                loss.backward()
+                self.optim.step()
+                total_loss += loss.item()
+                if i % 1000 == 0:
+                    print(
+                        f"Epoch: {e}, Iteration: {i}, sample_loss: {loss.item()}, Avg. Loss: {total_loss/(i+1)}"
+                    )
+
+            print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
 
     def generate_data(
         self,
@@ -51,10 +85,20 @@ class SRN2VecModel(Model):
         save_batch_size=128,
         file_path=".",
     ):
+        """
+        Generates the dataset like described in the corresponding paper. Since this needs alot of ram we use a batching approach.
+        Args:
+            n_shortest_paths (int, optional): how many shortest paths per node in graph. Defaults to 1280.
+            window_size (int, optional): window size for distance neighborhood in meters. Defaults to 900.
+            number_negative (int, optional): Negative samples to draw per positive sample.
+            save_batch_size (int, optional): how many shortest paths to process between each save. Defaults to 128.
+            file_path (str, optional): path where the dataset should be saved. Defaults to ".".
+        """
         save_path = os.path.join(file_path, "srn2vec-traindata.json")
         paths = self.generate_shortest_paths(
             self.network.line_graph, n_shortest_paths=n_shortest_paths
         )
+        # Iterate over batches
         for i in tqdm(
             range(0, len(paths), save_batch_size * len(self.network.line_graph.nodes))
         ):
@@ -63,6 +107,7 @@ class SRN2VecModel(Model):
                 window_size,
                 number_negative,
             )
+            # save batch
             if not os.path.isfile(save_path):
                 with open(save_path, "w") as fp:
                     json.dump(trainset, fp)
@@ -74,13 +119,23 @@ class SRN2VecModel(Model):
                     json.dump(a.tolist(), fp)
 
     def generate_train_pairs(self, paths: list, window_size: int, number_negative: int):
-        # generate windows and extract features from paper (same inter type and same degree)
-        train_pairs = []
+        """
+        Generates the traning pairs consisting of (v_x, v_y, in window_size?, same road type?). This is highly optimized.
+        Args:
+            paths (list): shortest path to process as 2D list
+            window_size (int): window_size in meters
+            number_negative (int): number of negative samples to draw for each positive sample
+
+        Returns:
+            list: training pairs
+        """
+        # extraxt static data beforehand to improve speed
         info = pd.DataFrame(self.network.gdf_edges)
         node_list = np.array(self.network.line_graph.nodes, dtype="l,l,l")
         node_idx_to_length_map = info.loc[node_list.astype(list), "length"].to_numpy()
         node_idx_to_highway_map = info.loc[node_list.astype(list), "highway"].to_numpy()
 
+        # generate pairs
         pairs = self.extract_pairs(
             node_idx_to_length_map,
             node_idx_to_highway_map,
@@ -94,22 +149,34 @@ class SRN2VecModel(Model):
 
     def extract_pairs(
         self,
-        info_length,
-        info_highway,
-        node_list,
-        node_paths,
-        window_size,
-        number_negative,
+        info_length: np.array,
+        info_highway: np.array,
+        node_list: np.array,
+        node_paths: list,
+        window_size: int,
+        number_negative: int,
     ):
+        """_summary_
+
+        Args:
+            info_length (np.array): length for each node in graph (ordered by node ordering in graph)
+            info_highway (np.array): type for each node in graph (ordered by node ordering in graph)
+            node_list (np.array): nodes in graph (ordered by node ordering in graph)
+            node_paths (list): shortest paths
+            window_size (int): window_size in meters
+            number_negative (int): number negative to draw for each node
+
+        Returns:
+            list: training pairs
+        """
         res = []
-        orig_lengths = np.array(
-            [0] + [len(x) for x in node_paths]
-        ).cumsum()  # lengths of orginal sequences in flatted
+        # lengths of orginal sequences in flatted with cumsum to get real position in flatted
+        orig_lengths = np.array([0] + [len(x) for x in node_paths]).cumsum()
         flatted = list(chain.from_iterable(node_paths))
-        # flat array and save indices -> loc on all and reshape after
         # get all lengths of sequence roads
         flat_lengths = info_length[flatted]
 
+        # generate window tuples
         node_combs = []
         for i in range(len(orig_lengths) - 1):
             lengths = flat_lengths[orig_lengths[i] : orig_lengths[i + 1]]
@@ -126,6 +193,7 @@ class SRN2VecModel(Model):
         node_combs = list(dict.fromkeys(node_combs))
         node_combs = list(chain.from_iterable(node_combs))
 
+        # generate same type label
         highways = info_highway[node_combs].reshape(int(len(node_combs) / 2), 2)
         pairs = np.c_[
             np.array(node_combs).reshape(int(len(node_combs) / 2), 2),
@@ -137,7 +205,7 @@ class SRN2VecModel(Model):
 
         res.extend(tuple(pairs.tolist()))
 
-        # generate negative sample
+        # generate negative sample with same procedure as for positive
         neg_nodes = np.random.choice(
             np.setdiff1d(np.arange(0, len(node_list)), node_combs),
             size=pairs.shape[0] * number_negative,
@@ -161,6 +229,15 @@ class SRN2VecModel(Model):
         return res
 
     def generate_shortest_paths(self, G: nx.Graph, n_shortest_paths: int):
+        """
+        Generates shortest paths between node in graph G.
+        Args:
+            G (nx.Graph): graph
+            n_shortest_paths (int): how many shortest path to generate per node in G.
+
+        Returns:
+            list: shortest_paths
+        """
         adj = nx.adjacency_matrix(G)
 
         def get_path(Pr, i, j):
@@ -195,19 +272,9 @@ class SRN2VecModel(Model):
 
         return paths
 
-    def train(self, epochs: int = 1000):
-        avg_loss = 0
-        for e in range(epochs):
-            self.model.train()
-            self.optimizer.zero_grad()
-            z = self.model.encode(self.train_data.x, self.train_data.edge_index)
-            loss = self.model.recon_loss(z, self.train_data.edge_index)
-            loss.backward()
-            self.optimizer.step()
-            avg_loss += loss.item()
-
-            if e > 0 and e % 500 == 0:
-                print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
+    def load_dataset(self, path: str):
+        with open(path, "r") as fp:
+            self.data = np.array(json.load(fp))
 
     def save_model(self, path="save/"):
         torch.save(self.model.state_dict(), os.path.join(path + "/model.pt"))
@@ -216,52 +283,47 @@ class SRN2VecModel(Model):
         self.model.load_state_dict(torch.load(path, map_location=self.device))
 
     def save_emb(self, path):
-        np.savetxt(
-            os.path.join(path + "/embedding.out"),
-            X=self.model.encode(self.train_data.x, self.train_data.edge_index)
-            .detach()
-            .cpu()
-            .numpy(),
-        )
+        ...
 
-    def load_emb(self, path=None):
-        if path:
-            return np.loadtxt(path)
-        return (
-            self.model.encode(self.train_data.x, self.train_data.edge_index)
-            .detach()
-            .cpu()
-            .numpy()
-        )
+    def load_emb(self):
+        return self.model.embedding.weight.data
 
 
 class SRN2Vec(nn.Module):
-    def __init__(self, network, emb_dim):
+    def __init__(self, network, device, emb_dim: int = 128, out_dim: int = 2):
         super(SRN2Vec, self).__init__()
-        self.lin_vx = nn.Linear(len(network.line_graph.nodes), emb_dim)
-        self.lin_vy = nn.Linear(len(network.line_graph.nodes), emb_dim)
+        self.embedding = nn.Embedding(len(network.line_graph.nodes), emb_dim)
+        self.lin_vx = nn.Linear(emb_dim, emb_dim)
+        self.lin_vy = nn.Linear(emb_dim, emb_dim)
 
-        self.lin_out = nn.Linear(emb_dim, 3)
+        self.lin_out = nn.Linear(emb_dim, out_dim)
         self.act_out = nn.Sigmoid()
 
-    def forward(self, vx, vy):
-        x = self.lin_vx(vx)
-        y = self.lin_vy(vy)
+    def forward(self, x):
+        emb = self.embedding(x)
+        # y_emb = self.embedding(vy)
 
-        x = x * y  # aggregate embeddings
+        # x = self.lin_vx(emb[:, 0])
+        # y = self.lin_vy(emb[:, 1])
+        x = emb[:, 0, :] * emb[:, 1, :]  # aggregate embeddings
 
         x = self.lin_out(x)
 
-        return self.act_out(x)
+        yh = self.act_out(x)
+
+        return yh
 
 
-class SRN2Vec_Dataset(Dataset):
-    def __init__(self, data):
-        self.network = network
-        self.map = self.create_edge_emb_mapping()
+class SRN2VecDataset(Dataset):
+    def __init__(self, data, num_classes: int):
+        self.X = data[:, :2]
+        self.y = data[:, 2:]
+        self.num_cls = num_classes
 
     def __len__(self):
         return self.X.shape[0]
 
     def __getitem__(self, idx):
-        return torch.tensor(self.X[idx], dtype=int), self.y[idx], self.map
+        return torch.tensor(self.X[idx], dtype=int), torch.Tensor(
+            self.y[idx]
+        )  # F.one_ont(self.X[idx], self.num_cls)
