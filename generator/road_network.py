@@ -7,16 +7,21 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
-import torch
-import torch_geometric.transforms as T
 from shapely.geometry import LineString
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from torch_geometric.data import Data
+
+try:
+    import torch
+    import torch_geometric.transforms as T
+    from torch_geometric.data import Data
+except ImportError:
+    ...
 
 try:
     import fmm
-    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
+    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
+                     STMATCHConfig)
 except ImportError:
     ...
 

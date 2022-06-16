@@ -81,7 +81,7 @@ def remove_outlier_trajectories(
     df["speed_mean"] = df["speed"].swifter.apply(np.mean)
     df["cpath"] = df["cpath"].swifter.apply(literal_eval)
 
-    # remove mean speed <= since mostly standing trajectories
+    # remove mean speed <= 0 since mostly standing trajectories
     # atleast 3 traversed edges & remove remaining zero average speed trajectories
     df = df[(df["cpath"].str.len() >= min_edges_traversed) & (df["speed_mean"] > 0)]
 
