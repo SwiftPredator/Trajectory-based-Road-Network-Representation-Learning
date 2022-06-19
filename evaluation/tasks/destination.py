@@ -12,10 +12,10 @@ from tqdm import tqdm
 from .task import Task
 
 
-class TravelTimeEstimation(Task):
+class DestinationPrediciton(Task):
     """
-    Travel Time Estimation Task. Extract Embeddings for trajectory and put them as sequence into lstm model.
-    Predict traverse time.
+    Next Location Task. Extract Embeddings for trajectory and put them as sequence into lstm model.
+    Predict next location given partial trajectory.
     """
 
     def __init__(
@@ -23,7 +23,6 @@ class TravelTimeEstimation(Task):
         traj_dataset,
         network,
         device,
-        seed,
         emb_dim: int = 128,
         batch_size: int = 128,
         epochs: int = 10,
@@ -35,10 +34,9 @@ class TravelTimeEstimation(Task):
         self.device = device
         self.batch_size = batch_size
         self.epochs = epochs
-        self.seed = seed
         # make a train test split on trajectorie data
         train, test = model_selection.train_test_split(
-            self.data, test_size=0.2, random_state=self.seed
+            self.data, test_size=0.2, random_state=1
         )
         self.train_loader = DataLoader(
             TTE_Dataset(train, network),

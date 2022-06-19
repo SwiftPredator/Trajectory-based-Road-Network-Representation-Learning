@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pandas as pd
 import torch
+from models.rfn import RFNModel
 
 module_path = os.path.abspath(os.path.join("../.."))
 if module_path not in sys.path:
@@ -14,7 +15,15 @@ if module_path not in sys.path:
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork
-from models import GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel, Toast
+from models import (
+    GAEModel,
+    GATEncoder,
+    GCNEncoder,
+    Node2VecModel,
+    PCAModel,
+    RFNModel,
+    Toast,
+)
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -23,6 +32,7 @@ model_map = {
     "deepwalk": (Node2VecModel, {"q": 1, "p": 1}),
     "pca": (PCAModel, {}),
     "toast": (Toast, {}),  # needs to be fixed
+    "rfn": (RFNModel, {}),
 }
 
 
@@ -81,7 +91,7 @@ def train_model(args, data, network):
     )
     data = transform(data)
     model, margs = model_map[args["model"]]
-    if args["model"] == "toast":
+    if args["model"] == "toast" or args["model"] == "rfn":
         margs["network"] = network
     model = model(data, device=device, emb_dim=args["embedding"], **margs)
     model.train(epochs=args["epochs"])

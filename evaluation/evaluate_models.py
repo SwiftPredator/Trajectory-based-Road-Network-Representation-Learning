@@ -16,7 +16,7 @@ import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
 from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    SRN2VecModel, Toast)
+                    RFNModel, SRN2VecModel, Toast)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
@@ -29,7 +29,8 @@ model_map = {
     "deepwalk": (Node2VecModel, {"q": 1, "p": 1}),
     "pca": (PCAModel, {}),
     "toast": (Toast, {}),
-    "srn2vec": (SRN2VecModel, {})
+    "srn2vec": (SRN2VecModel, {}),
+    "rfn": (RFNModel, {}),
 }
 
 
@@ -78,12 +79,12 @@ def generate_dataset(args):
 
 
 # index is correct
-def init_roadclf(network):
+def init_roadclf(args, network):
     decoder = linear_model.LogisticRegression(multi_class="multinomial", max_iter=1000)
     y = np.array(
         [network.gdf_edges.loc[n]["highway_enc"] for n in network.line_graph.nodes]
     )
-    roadclf = RoadTypeClfTask(decoder, y)
+    roadclf = RoadTypeClfTask(decoder, y, seed=args["seed"])
     roadclf.register_metric(
         name="f1_micro", metric_func=metrics.f1_score, args={"average": "micro"}
     )
@@ -117,6 +118,7 @@ def init_traveltime(args, traj_data, network, device):
         device=device,
         batch_size=128,
         epochs=args["epochs"],
+        seed=args["seed"],
     )
     travel_time_est.register_metric(
         name="MSE", metric_func=metrics.mean_squared_error, args={}
@@ -135,7 +137,7 @@ def init_traveltime(args, traj_data, network, device):
 
 
 # label index is right here;
-def init_meanspeed(network):
+def init_meanspeed(args, network):
     tf = pd.read_csv("../datasets/trajectories/Porto/speed_features_unnormalized.csv")
     tf.set_index(["u", "v", "key"], inplace=True)
     map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
@@ -145,7 +147,7 @@ def init_meanspeed(network):
     y = tf["avg_speed"]
     y.fillna(0, inplace=True)
     y = y.round(2)
-    mean_speed_reg = MeanSpeedRegTask(decoder, y)
+    mean_speed_reg = MeanSpeedRegTask(decoder, y, seed=args["seed"])
 
     mean_speed_reg.register_metric(
         name="MSE", metric_func=metrics.mean_squared_error, args={}
@@ -168,6 +170,10 @@ def evaluate_model(args, data, network, trajectory):
         args (dict): Args from arg parser
         data (pyg Data): Data to train on
     """
+    np.random.seed(args["seed"])
+    torch.manual_seed(args["seed"])
+    torch.cuda.manual_seed(args["seed"])
+
     torch.cuda.set_device(args["device"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     transform = T.Compose(
@@ -181,7 +187,7 @@ def evaluate_model(args, data, network, trajectory):
     eva = Evaluation()
 
     if "roadclf" in tasks:
-        eva.register_task("roadclf", init_roadclf(network))
+        eva.register_task("roadclf", init_roadclf(args, network))
 
     if "traveltime" in tasks:
         eva.register_task(
@@ -189,14 +195,17 @@ def evaluate_model(args, data, network, trajectory):
         )
 
     if "meanspeed" in tasks:
-        eva.register_task("meanspeed", init_meanspeed(network))
+        eva.register_task("meanspeed", init_meanspeed(args, network))
 
     for m in models:
         model, margs = model_map[m]
-        if m == "toast" or m == "srn2vec":
+        model_file_name = "model.params" if m == "rfn" else "model.pt"
+        if m == "toast" or m == "srn2vec" or m == "rfn":
             margs["network"] = network
         model = model(data, device=device, **margs)
-        model.load_model(path=os.path.join("../models/model_states", m, "model.pt"))
+        model.load_model(
+            path=os.path.join("../models/model_states", m, model_file_name)
+        )
         eva.register_model(m, model)
 
     path = os.path.join(
@@ -247,6 +256,14 @@ if __name__ == "__main__":
         help="Trajectory sample count to use for evaluation",
         type=int,
         required=True,
+    )
+
+    parser.add_argument(
+        "-se",
+        "--seed",
+        help="Seed for the random operations like train/test split",
+        default=69,
+        type=int,
     )
 
     args = vars(parser.parse_args())

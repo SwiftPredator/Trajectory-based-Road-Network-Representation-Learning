@@ -10,13 +10,15 @@ dependencies:
   - geopandas
   - pytorch::pytorch=1.11.0
   - cudatoolkit=11.3
+  - cudnn
   - pyg::pyg
   - numpy
   - shapely
   - swifter
   - joblib
   - gensim
-  # - pip:
+  - pip:
+    - mxnet-cu112
   #     - pdoc3
   #     - matplotlib
   #     - scipy

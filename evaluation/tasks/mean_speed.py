@@ -10,10 +10,11 @@ from .task import Task
 
 
 class MeanSpeedRegTask(Task):
-    def __init__(self, decoder, y):
+    def __init__(self, decoder, y, seed):
         self.decoder = decoder
         self.metrics = {}
         self.y = y
+        self.seed = seed
 
     def evaluate(self, emb: np.ndarray) -> Dict[str, any]:
         decoder = clone(self.decoder)

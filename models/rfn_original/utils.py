@@ -6,6 +6,7 @@ import numpy as np
 import osmnx as ox
 from mxnet import gpu, nd
 from mxnet.gluon.nn import Activation, Dense, HybridBlock, HybridSequential
+from torch_geometric.utils import from_networkx
 
 
 class Identity(HybridBlock):
@@ -221,27 +222,42 @@ def get_edge_target_y(G: nx.MultiDiGraph, target_value="speed_kph"):
     return edges[target_value].values / 60
 
 
-def load_city_graph(city_name):
-    G = ox.load_graphml("data/%s_drive_network_original.graphml" % city_name)
-    G = nx.convert_node_labels_to_integers(G, ordering="default")
+def generate_required_city_graph(city_name, network):
+
+    G = network.G
+    D = network.line_graph
+    # preprocess network graph to fit required data
+    # G = nx.convert_node_labels_to_integers(network.G, ordering="default")
+    # G.remove_edges_from(nx.selfloop_edges(G))
+    nx.set_edge_attributes(G, 0, "bearing")
     G = ox.add_edge_bearings(G)
     G = ox.add_edge_speeds(G)
     G = ox.add_edge_travel_times(G)
-    # for e in G.edges(data=True):
-    #     u, v, info = e
-    #     if type(info['highway']) == list:
-    #         info['highway'] = ":".join(info['highway'])
-    return G
 
-
-def generate_required_city_graph(city_name, G):
     add_edge_position_info(G)
-    D = make_dual_graph(G)
+    D2 = make_dual_graph(G)
+
+    print(list(D2.nodes)[:3], list(D.nodes)[:3], list(G.edges)[:3])
+
+    # add edge attributes to dual
+    for e in D.nodes(data=True):
+        edge, info = e
+        u, v, k = edge
+        for a, b in G.edges[u, v, k].items():
+            info[a] = b
 
     X_B_np = add_between_edge_attrib(D)
     X_E_np = get_edge_attrib(G)
     X_V_np = get_vertex_attrib(G)
-    y_np = get_edge_target_y(G, target_value="speed_kph")
+    # y_np = get_edge_target_y(G, target_value="speed_kph")
+
+    map_id = {j: i for i, j in enumerate(D.nodes)}
+    edge_list = nx.to_pandas_edgelist(D)
+    edge_list["sidx"] = edge_list["source"].map(map_id)
+    edge_list["tidx"] = edge_list["target"].map(map_id)
+    edge_index = np.array(edge_list[["sidx", "tidx"]].values).T
+
+    y_np = edge_index.tolist()
 
     print(
         "Primal V,E: (%d, %d), Dual V,E: (%d, %d)"
