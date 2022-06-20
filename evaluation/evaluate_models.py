@@ -15,12 +15,25 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    RFNModel, SRN2VecModel, Toast)
+from models import (
+    GAEModel,
+    GATEncoder,
+    GCNEncoder,
+    Node2VecModel,
+    PCAModel,
+    RFNModel,
+    SRN2VecModel,
+    Toast,
+)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import MeanSpeedRegTask, RoadTypeClfTask, TravelTimeEstimation
+from tasks import (
+    MeanSpeedRegTask,
+    NextLocationPrediciton,
+    RoadTypeClfTask,
+    TravelTimeEstimation,
+)
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -162,6 +175,25 @@ def init_meanspeed(args, network):
     return mean_speed_reg
 
 
+def init_nextlocation(args, traj_data, network, device):
+    nextlocation_pred = NextLocationPrediciton(
+        traj_dataset=traj_data,
+        network=network,
+        device=device,
+        batch_size=128,
+        epochs=args["epochs"],
+        seed=args["seed"],
+    )
+
+    nextlocation_pred.register_metric(
+        name="accuracy",
+        metric_func=metrics.accuracy_score,
+        args={"normalize": True},
+    )
+
+    return nextlocation_pred
+
+
 def evaluate_model(args, data, network, trajectory):
     """
     trains the model given by the args argument on the corresponding data
@@ -196,6 +228,11 @@ def evaluate_model(args, data, network, trajectory):
 
     if "meanspeed" in tasks:
         eva.register_task("meanspeed", init_meanspeed(args, network))
+
+    if "nextlocation" in tasks:
+        eva.register_task(
+            "nextlocation", init_nextlocation(args, trajectory, network, device)
+        )
 
     for m in models:
         model, margs = model_map[m]
