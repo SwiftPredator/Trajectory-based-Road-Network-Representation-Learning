@@ -4,4 +4,6 @@ experiments/cache/*
 models/__pycache__/*
 *.pyc
 *.csv
-model_states/*
+models/model_states/*
+*.pt
+*.out

@@ -15,25 +15,13 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (
-    GAEModel,
-    GATEncoder,
-    GCNEncoder,
-    Node2VecModel,
-    PCAModel,
-    RFNModel,
-    SRN2VecModel,
-    Toast,
-)
+from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
+                    RFNModel, SRN2VecModel, Toast)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (
-    MeanSpeedRegTask,
-    NextLocationPrediciton,
-    RoadTypeClfTask,
-    TravelTimeEstimation,
-)
+from tasks import (MeanSpeedRegTask, NextLocationPrediciton, RoadTypeClfTask,
+                   TravelTimeEstimation)
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -180,7 +168,7 @@ def init_nextlocation(args, traj_data, network, device):
         traj_dataset=traj_data,
         network=network,
         device=device,
-        batch_size=128,
+        batch_size=256,
         epochs=args["epochs"],
         seed=args["seed"],
     )

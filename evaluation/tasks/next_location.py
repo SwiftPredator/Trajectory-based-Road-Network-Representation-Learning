@@ -5,7 +5,7 @@ import networkx as nx
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn import model_selection
+from sklearn import model_selection, neighbors
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -60,14 +60,14 @@ class NextLocationPrediciton(Task):
                 self.network.line_graph.nodes
             ),  # predict the destination node (classification)
             device=self.device,
-            pos_map=dict(
-                zip(
-                    self.network.gdf_edges.fid,
-                    self.network.gdf_edges.geometry.to_crs(
-                        coord_sys
-                    ).centroid,  # portugal specific
-                )
-            ),
+            # pos_map=dict(
+            #     zip(
+            #         self.network.gdf_edges.fid,
+            #         self.network.gdf_edges.geometry.to_crs(
+            #             coord_sys
+            #         ).centroid,  # portugal specific
+            #     )
+            # ),
             emb_dim=emb.shape[1],
             batch_size=self.batch_size,
         )
@@ -114,12 +114,17 @@ class NL_Dataset(Dataset):
         return (
             torch.tensor(self.X[idx], dtype=int),
             self.y[idx],
-            self.neigh_masks,
+            self.neighbor_masks[idx],
             self.map,
         )
 
     # tested index mapping is correct
     def create_edge_emb_mapping(self):
+        """_summary_
+        Maps fid of edges to index of node (i.e edge) in line_graph
+        Returns:
+            _type_: _description_
+        """
         map = {}
         nodes = list(self.network.line_graph.nodes)
         for index, id in zip(self.network.gdf_edges.index, self.network.gdf_edges.fid):
@@ -129,25 +134,37 @@ class NL_Dataset(Dataset):
         return map
 
     def create_neighborhood_mask(self):
-        adj = nx.to_numpy_matrix(self.network.line_graph)
-        last_items = [x[-1] for x in self.X]
-        print(last_items)
-        nodes = np.array(self.network.line_graph.nodes, dtype="l,l,l")
-        idxs = np.array(
-            self.network.gdf_edges[
-                self.network.gdf_edges.fid.isin(last_items)
-            ].index.to_list(),
-            dtype="l,l,l",
-        )
-        for i in idxs:
-            ns = list(self.network.line_graph.neighbors(tuple(i)))
-            for n in ns:
-                print(list(self.network.line_graph.nodes).index(n))
-            print("---")
+        """
+        Gets the neighbors for each last visible trajectory road segment.
+        The neighbors are a list of indices corresponding to the index in
+        network.line_graph.nodes of the road segment i.e the index of the embedding.
 
-        neigh_idxs = np.flatnonzero(np.isin(nodes, idxs))
-        neighbors = np.argwhere(adj[neigh_idxs, :] > 0)
-        print(neighbors)
+        Returns:
+            list[list[int]]: neighbor idxs as 2D List
+        """
+        adj = nx.to_numpy_matrix(self.network.line_graph)
+        last_items = [x[-1] for x in self.X]  # fid of edges
+        # nodes = np.array(self.network.line_graph.nodes, dtype="l,l,l")
+        neighbor_list = []
+
+        # get neighbors for each node
+        for fid in last_items:
+            graph_id = self.map[fid]
+            node_neigh = np.flatnonzero(adj[graph_id]).tolist()
+            neighbor_list.append(node_neigh)
+        # idxs = np.array(
+        #     self.network.gdf_edges[
+        #         self.network.gdf_edges.fid.isin(last_items)
+        #     ].index.to_list(),
+        #     dtype="l,l,l",
+        # )
+        # for i in idxs:
+        #     ns = list(self.network.line_graph.neighbors(tuple(i)))
+        #     for n in ns:
+        #         print(list(self.network.line_graph.nodes).index(n))
+        #     print("---")
+
+        return neighbor_list
 
     @staticmethod
     def collate_fn_padd(batch):
@@ -173,11 +190,20 @@ class NL_Dataset(Dataset):
                 zip(lengths_old.tolist(), label), key=lambda pair: pair[0], reverse=True
             )
         ]
+        neigh_masks = [
+            x
+            for _, x in sorted(
+                zip(lengths_old.tolist(), neigh_masks),
+                key=lambda pair: pair[0],
+                reverse=True,
+            )
+        ]
 
         # pad
         data = torch.nn.utils.rnn.pad_sequence(data, padding_value=0, batch_first=True)
         # compute mask
         mask = data != 0
+        label = [map[0][l] for l in label]  # map to embedding ids
 
         return (
             data,
@@ -194,14 +220,12 @@ class NL_LSTM(nn.Module):
         self,
         out_dim: int,
         device,
-        pos_map: Dict,
         emb_dim: int = 128,
         hidden_units: int = 256,
         layers: int = 1,
         batch_size: int = 128,
     ):
         super(NL_LSTM, self).__init__()
-        self.pos_map = pos_map
         self.encoder = nn.LSTM(
             emb_dim,
             hidden_units,
@@ -226,6 +250,15 @@ class NL_LSTM(nn.Module):
         self.encoder.to(device)
         self.decoder.to(device)
 
+    def masked_out(self, x, idxs):
+        mask = torch.ones_like(x)
+        for row, idx in zip(mask, idxs):
+            row[idx] = 0
+        x = x + (mask + 1e-44).log()
+        # divider = torch.sum(torch.exp(x) * mask, axis=1).reshape(-1, 1)
+
+        return x  # torch.log(torch.div(torch.exp(x) * mask, divider))
+
     def forward(self, x, lengths, neigh_masks):
         batch_size, seq_len, _ = x.size()
         self.hidden = self.init_hidden(batch_size=batch_size)
@@ -245,9 +278,9 @@ class NL_LSTM(nn.Module):
 
         yh = self.decoder(x)
 
-        print(yh, neigh_masks)
+        yh = self.masked_out(yh, neigh_masks)
 
-        return yh  # (batch x 1)
+        return yh  # (batch x len(possible nodes))
 
     def train_model(self, loader, emb, epochs=100):
         self.train()
@@ -258,8 +291,8 @@ class NL_LSTM(nn.Module):
                 emb_batch = emb_batch.to(self.device)
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths, neigh_masks)
+
                 loss = self.loss(yh.squeeze(), y)
-                return
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
@@ -270,11 +303,11 @@ class NL_LSTM(nn.Module):
     def predict(self, loader, emb):
         self.eval()
         yhs, ys = [], []
-        for X, y, lengths, mask, map in loader:
+        for X, y, neigh_mask, lengths, mask, map in loader:
             emb_batch = self.get_embedding(emb, X.clone(), mask, map)
             emb_batch = emb_batch.to(self.device)
             y = y.to(self.device)
-            yh = self.forward(emb_batch, lengths)
+            yh = self.soft(self.forward(emb_batch, lengths, neigh_mask)).argmax(dim=1)
             yhs.extend(yh.tolist())
             ys.extend(y.tolist())
 
