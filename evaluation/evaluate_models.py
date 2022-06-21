@@ -20,7 +20,8 @@ from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (MeanSpeedRegTask, NextLocationPrediciton, RoadTypeClfTask,
+from tasks import (DestinationPrediciton, MeanSpeedRegTask,
+                   NextLocationPrediciton, RoadTypeClfTask,
                    TravelTimeEstimation)
 
 model_map = {
@@ -182,6 +183,25 @@ def init_nextlocation(args, traj_data, network, device):
     return nextlocation_pred
 
 
+def init_destination(args, traj_data, network, device):
+    destination_pred = DestinationPrediciton(
+        traj_dataset=traj_data,
+        network=network,
+        device=device,
+        batch_size=256,
+        epochs=args["epochs"],
+        seed=args["seed"],
+    )
+
+    destination_pred.register_metric(
+        name="accuracy",
+        metric_func=metrics.accuracy_score,
+        args={"normalize": True},
+    )
+
+    return destination_pred
+
+
 def evaluate_model(args, data, network, trajectory):
     """
     trains the model given by the args argument on the corresponding data
@@ -221,6 +241,9 @@ def evaluate_model(args, data, network, trajectory):
         eva.register_task(
             "nextlocation", init_nextlocation(args, trajectory, network, device)
         )
+    
+    if "destination" in tasks:
+        eva.register_task("destination", init_destination(args, trajectory, network, device))
 
     for m in models:
         model, margs = model_map[m]
