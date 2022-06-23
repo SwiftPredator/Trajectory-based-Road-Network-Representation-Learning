@@ -21,7 +21,7 @@ from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
 from tasks import (DestinationPrediciton, MeanSpeedRegTask,
-                   NextLocationPrediciton, RoadTypeClfTask,
+                   NextLocationPrediciton, RoadTypeClfTask, RoutePlanning,
                    TravelTimeEstimation)
 
 model_map = {
@@ -202,6 +202,36 @@ def init_destination(args, traj_data, network, device):
     return destination_pred
 
 
+def init_route(args, traj_data, network, device):
+    route_pred = RoutePlanning(
+        traj_dataset=traj_data,
+        network=network,
+        device=device,
+        batch_size=256,
+        epochs=args["epochs"],
+        seed=args["seed"],
+    )
+
+    route_pred.register_metric(
+        name="accuracy",
+        metric_func=metrics.accuracy_score,
+        args={"normalize": True},
+    )
+    route_pred.register_metric(
+        name="f1_micro", metric_func=metrics.f1_score, args={"average": "micro"}
+    )
+    route_pred.register_metric(
+        name="f1_macro", metric_func=metrics.f1_score, args={"average": "macro"}
+    )
+    route_pred.register_metric(
+        name="f1_weighted",
+        metric_func=metrics.f1_score,
+        args={"average": "weighted"},
+    )
+
+    return route_pred
+
+
 def evaluate_model(args, data, network, trajectory):
     """
     trains the model given by the args argument on the corresponding data
@@ -241,9 +271,14 @@ def evaluate_model(args, data, network, trajectory):
         eva.register_task(
             "nextlocation", init_nextlocation(args, trajectory, network, device)
         )
-    
+
     if "destination" in tasks:
-        eva.register_task("destination", init_destination(args, trajectory, network, device))
+        eva.register_task(
+            "destination", init_destination(args, trajectory, network, device)
+        )
+
+    if "route" in tasks:
+        eva.register_task("route", init_route(args, trajectory, network, device))
 
     for m in models:
         model, margs = model_map[m]
