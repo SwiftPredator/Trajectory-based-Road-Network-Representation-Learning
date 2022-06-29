@@ -1,4 +1,5 @@
 from .gae import GAEModel, GATEncoder, GCNEncoder
+from .hrnr import HRNRModel
 from .model import Model
 from .node2vec import Node2VecModel
 from .pca import PCAModel

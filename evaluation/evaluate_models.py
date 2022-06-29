@@ -15,14 +15,28 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (GAEModel, GATEncoder, GCNEncoder, Node2VecModel, PCAModel,
-                    RFNModel, SRN2VecModel, Toast)
+from models import (
+    GAEModel,
+    GATEncoder,
+    GCNEncoder,
+    HRNRModel,
+    Node2VecModel,
+    PCAModel,
+    RFNModel,
+    SRN2VecModel,
+    Toast,
+)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (DestinationPrediciton, MeanSpeedRegTask,
-                   NextLocationPrediciton, RoadTypeClfTask, RoutePlanning,
-                   TravelTimeEstimation)
+from tasks import (
+    DestinationPrediciton,
+    MeanSpeedRegTask,
+    NextLocationPrediciton,
+    RoadTypeClfTask,
+    RoutePlanning,
+    TravelTimeEstimation,
+)
 
 model_map = {
     "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
@@ -33,6 +47,7 @@ model_map = {
     "toast": (Toast, {}),
     "srn2vec": (SRN2VecModel, {}),
     "rfn": (RFNModel, {}),
+    "hrnr": (HRNRModel, {"data_path": "../models/training/hrnr_data"}),
 }
 
 
@@ -82,7 +97,9 @@ def generate_dataset(args):
 
 # index is correct
 def init_roadclf(args, network):
-    decoder = linear_model.LogisticRegression(multi_class="multinomial", max_iter=1000)
+    decoder = linear_model.LogisticRegression(
+        multi_class="multinomial", max_iter=1000, n_jobs=-1
+    )
     y = np.array(
         [network.gdf_edges.loc[n]["highway_enc"] for n in network.line_graph.nodes]
     )
@@ -283,7 +300,7 @@ def evaluate_model(args, data, network, trajectory):
     for m in models:
         model, margs = model_map[m]
         model_file_name = "model.params" if m == "rfn" else "model.pt"
-        if m == "toast" or m == "srn2vec" or m == "rfn":
+        if m in ["toast", "srn2vec", "rfn", "hrnr"]:
             margs["network"] = network
         model = model(data, device=device, **margs)
         model.load_model(
