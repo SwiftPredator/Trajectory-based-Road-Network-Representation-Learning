@@ -39,15 +39,47 @@ from tasks import (
 )
 
 model_map = {
-    "gaegcn": (GAEModel, {"encoder": GCNEncoder}),
-    "gaegat": (GAEModel, {"encoder": GATEncoder}),
-    "node2vec": (Node2VecModel, {"q": 4, "p": 1}),
-    "deepwalk": (Node2VecModel, {"q": 1, "p": 1}),
-    "pca": (PCAModel, {}),
-    "toast": (Toast, {}),
-    "srn2vec": (SRN2VecModel, {}),
-    "rfn": (RFNModel, {}),
-    "hrnr": (HRNRModel, {"data_path": "../models/training/hrnr_data"}),
+    "gaegcn_features": (
+        GAEModel,
+        {"encoder": GCNEncoder},
+        "../models/model_states/gaegcn/no_speed",
+    ),
+    "gaegat_features": (
+        GAEModel,
+        {"encoder": GATEncoder},
+        "../models/model_states/gaegat/no_speed",
+    ),
+    "gaegcn_speed": (
+        GAEModel,
+        {"encoder": GCNEncoder},
+        "../models/model_states/gaegcn/speed",
+    ),
+    "gaegat_speed": (
+        GAEModel,
+        {"encoder": GATEncoder},
+        "../models/model_states/gaegat/speed",
+    ),
+    "gaegcn_no_features": (
+        GAEModel,
+        {"encoder": GCNEncoder},
+        "../models/model_states/gaegcn/no_features",
+    ),
+    "gaegat_no_features": (
+        GAEModel,
+        {"encoder": GATEncoder},
+        "../models/model_states/gaegat/no_features",
+    ),
+    "node2vec": (Node2VecModel, {"q": 4, "p": 1}, "../models/model_states/node2vec"),
+    "deepwalk": (Node2VecModel, {"q": 1, "p": 1}, "../models/model_states/deepwalk"),
+    "pca": (PCAModel, {}, "../models/model_states/pca"),
+    "toast": (Toast, {}, "../models/model_states/toast"),
+    "srn2vec": (SRN2VecModel, {}, "../models/model_states/srn2vec"),
+    "rfn": (RFNModel, {}, "../models/model_states/rfn"),
+    "hrnr": (
+        HRNRModel,
+        {"data_path": "../models/training/hrnr_data"},
+        "../models/model_states/hrnr",
+    ),
 }
 
 
@@ -298,14 +330,16 @@ def evaluate_model(args, data, network, trajectory):
         eva.register_task("route", init_route(args, trajectory, network, device))
 
     for m in models:
-        model, margs = model_map[m]
+        model, margs, model_path = model_map[m]
         model_file_name = "model.params" if m == "rfn" else "model.pt"
         if m in ["toast", "srn2vec", "rfn", "hrnr"]:
             margs["network"] = network
+        if m in ["gaegcn_no_features", "gaegat_no_features"]:
+            data.x = None
+            data = T.OneHotDegree(128)(data)
+
         model = model(data, device=device, **margs)
-        model.load_model(
-            path=os.path.join("../models/model_states", m, model_file_name)
-        )
+        model.load_model(path=os.path.join(model_path, model_file_name))
         eva.register_model(m, model)
 
     path = os.path.join(

@@ -7,3 +7,4 @@ models/__pycache__/*
 models/model_states/*
 *.pt
 *.out
+models/hrnr_original/*
