@@ -1,5 +1,5 @@
 from .gae import GAEModel, GATEncoder, GCNEncoder
-from .gtn import GTNModel
+from .gtn import GTNModel, Traj2Vec
 from .hrnr import HRNRModel
 from .model import Model
 from .node2vec import Node2VecModel

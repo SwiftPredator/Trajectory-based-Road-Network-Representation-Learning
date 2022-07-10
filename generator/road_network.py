@@ -150,7 +150,10 @@ class RoadNetwork:
         return nx.line_graph(self.G, create_using=nx.DiGraph)
 
     def generate_road_segment_pyg_dataset(
-        self, traj_data: gpd.GeoDataFrame = None, drop_labels: List = []
+        self,
+        traj_data: gpd.GeoDataFrame = None,
+        drop_labels: List = [],
+        include_coords: bool = False,
     ):
         """
         Generates road segment feature dataset in the pyg Data format.
@@ -179,7 +182,11 @@ class RoadNetwork:
             traj_data.drop(["id"], axis=1, inplace=True)
             df = df.join(traj_data)
 
-        # print(df.head())
+        # print(df.head()
+
+        if include_coords:
+            df["x"] = df.geometry.centroid.x / 100  # normalize to -2/2
+            df["y"] = df.geometry.centroid.y / 100  # normalize to -1/1
 
         df.drop(
             [
@@ -224,7 +231,13 @@ class RoadNetwork:
 
         # Categorical features one hot encoding
         df = pd.get_dummies(
-            df, columns=["highway_enc", "lanes", "maxspeed"], drop_first=True
+            df,
+            columns=list(
+                set(["highway_enc", "lanes", "maxspeed"]).symmetric_difference(
+                    set(drop_labels)
+                )
+            ),
+            drop_first=True,
         )
         # print(df.head(), df.shape)
 

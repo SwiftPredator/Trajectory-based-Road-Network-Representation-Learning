@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 import sys
 import uuid
 from datetime import datetime
@@ -15,30 +16,18 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (
-    GAEModel,
-    GATEncoder,
-    GCNEncoder,
-    HRNRModel,
-    Node2VecModel,
-    PCAModel,
-    RFNModel,
-    SRN2VecModel,
-    Toast,
-)
+from models import (GAEModel, GATEncoder, GCNEncoder, GTNModel, HRNRModel,
+                    Node2VecModel, PCAModel, RFNModel, SRN2VecModel, Toast)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (
-    DestinationPrediciton,
-    MeanSpeedRegTask,
-    NextLocationPrediciton,
-    RoadTypeClfTask,
-    RoutePlanning,
-    TravelTimeEstimation,
-)
+from tasks import (DestinationPrediciton, MeanSpeedRegTask,
+                   NextLocationPrediciton, RoadTypeClfTask, RoutePlanning,
+                   TravelTimeEstimation)
 
 model_map = {
+    "gtn_no_speed": (GTNModel, {}, "../models/model_states/gtn/no_speed"),
+    "gtn_speed": (GTNModel, {}, "../models/model_states/gtn/speed"),
     "gaegcn_features": (
         GAEModel,
         {"encoder": GCNEncoder},
@@ -120,7 +109,7 @@ def generate_dataset(args):
         return (
             network,
             traj_dataset,
-            network.generate_road_segment_pyg_dataset(traj_data=traj_features),
+            network.generate_road_segment_pyg_dataset(traj_data=traj_features, include_coords=True),
         )
     else:
         print("without speed")
@@ -289,9 +278,12 @@ def evaluate_model(args, data, network, trajectory):
         args (dict): Args from arg parser
         data (pyg Data): Data to train on
     """
+    random.seed(args["seed"])
     np.random.seed(args["seed"])
     torch.manual_seed(args["seed"])
-    torch.cuda.manual_seed(args["seed"])
+    torch.cuda.manual_seed(args["seed"])    
+    torch.cuda.manual_seed_all(args["seed"])
+    torch.backends.cudnn.deterministic = True
 
     torch.cuda.set_device(args["device"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -337,6 +329,9 @@ def evaluate_model(args, data, network, trajectory):
         if m in ["gaegcn_no_features", "gaegat_no_features"]:
             data.x = None
             data = T.OneHotDegree(128)(data)
+        if m in ["gtn_no_speed", "gtn_speed"]:
+            margs["network"] = network
+            margs["traj_data"] = trajectory
 
         model = model(data, device=device, **margs)
         model.load_model(path=os.path.join(model_path, model_file_name))

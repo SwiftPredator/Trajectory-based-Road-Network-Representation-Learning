@@ -11,8 +11,10 @@ from .model import Model
 
 
 class GAEModel(Model):
-    def __init__(self, data, device, encoder, emb_dim=128):
-        self.model = GAE(encoder(data.x.shape[1], emb_dim))  # feature dim, emb dim
+    def __init__(self, data, device, encoder, emb_dim=128, layers=2):
+        self.model = GAE(
+            encoder(data.x.shape[1], emb_dim, layers)
+        )  # feature dim, emb dim
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.model = self.model.to(device)
         self.device = device
@@ -60,14 +62,21 @@ class GAEModel(Model):
 
 
 class GCNEncoder(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, layers):
         super().__init__()
-        self.conv1 = GCNConv(in_channels, 2 * out_channels)
-        self.conv2 = GCNConv(2 * out_channels, out_channels)
+        self.layers = nn.Sequential()
+        if layers == 2:
+            self.layers.append(GCNConv(in_channels, 2 * out_channels))
+            self.layers.append(GCNConv(2 * out_channels, out_channels))
+        else:
+            self.layers.append(GCNConv(in_channels, out_channels))
 
     def forward(self, x, edge_index):
-        x = self.conv1(x.float(), edge_index).relu()
-        return self.conv2(x, edge_index)
+        x = x.float()
+        for layer in self.layers[:-1]:
+            x = layer(x, edge_index).relu()
+
+        return self.layers[-1](x, edge_index)
 
 
 class GATEncoder(nn.Module):
