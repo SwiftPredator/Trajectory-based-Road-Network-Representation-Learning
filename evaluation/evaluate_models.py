@@ -16,47 +16,45 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (GAEModel, GATEncoder, GCNEncoder, GTNModel, HRNRModel,
-                    Node2VecModel, PCAModel, RFNModel, SRN2VecModel, Toast)
+from models import (
+    GAEModel,
+    GATEncoder,
+    GCNEncoder,
+    GTCModel,
+    GTNModel,
+    HRNRModel,
+    Node2VecModel,
+    PCAModel,
+    RFNModel,
+    SRN2VecModel,
+    Toast,
+    Traj2VecModel,
+)
 from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (DestinationPrediciton, MeanSpeedRegTask,
-                   NextLocationPrediciton, RoadTypeClfTask, RoutePlanning,
-                   TravelTimeEstimation)
+from tasks import (
+    DestinationPrediciton,
+    MeanSpeedRegTask,
+    NextLocationPrediciton,
+    RoadTypeClfTask,
+    RoutePlanning,
+    TravelTimeEstimation,
+)
 
 model_map = {
-    "gtn_no_speed": (GTNModel, {}, "../models/model_states/gtn/no_speed"),
-    "gtn_speed": (GTNModel, {}, "../models/model_states/gtn/speed"),
-    "gaegcn_features": (
+    "gtn": (GTNModel, {}, "../models/model_states/gtn/"),
+    "gtc": (GTCModel, {}, "../models/model_states/gtc/"),
+    "traj2vec": (Traj2VecModel, {}, "..models/model_states/traj2vec"),
+    "gaegcn": (
         GAEModel,
         {"encoder": GCNEncoder},
-        "../models/model_states/gaegcn/no_speed",
+        "../models/model_states/gaegcn/",
     ),
-    "gaegat_features": (
+    "gaegat": (
         GAEModel,
         {"encoder": GATEncoder},
-        "../models/model_states/gaegat/no_speed",
-    ),
-    "gaegcn_speed": (
-        GAEModel,
-        {"encoder": GCNEncoder},
-        "../models/model_states/gaegcn/speed",
-    ),
-    "gaegat_speed": (
-        GAEModel,
-        {"encoder": GATEncoder},
-        "../models/model_states/gaegat/speed",
-    ),
-    "gaegcn_no_features": (
-        GAEModel,
-        {"encoder": GCNEncoder},
-        "../models/model_states/gaegcn/no_features",
-    ),
-    "gaegat_no_features": (
-        GAEModel,
-        {"encoder": GATEncoder},
-        "../models/model_states/gaegat/no_features",
+        "../models/model_states/gaegat/",
     ),
     "node2vec": (Node2VecModel, {"q": 4, "p": 1}, "../models/model_states/node2vec"),
     "deepwalk": (Node2VecModel, {"q": 1, "p": 1}, "../models/model_states/deepwalk"),
@@ -106,14 +104,25 @@ def generate_dataset(args):
         )  # min max normalization
         traj_features.fillna(0, inplace=True)
 
+        drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
         return (
             network,
             traj_dataset,
-            network.generate_road_segment_pyg_dataset(traj_data=traj_features, include_coords=True),
+            network.generate_road_segment_pyg_dataset(
+                traj_data=traj_features,
+                include_coords=True,
+                drop_labels=drop_label,
+            ),
         )
     else:
         print("without speed")
-        return network, traj_dataset, network.generate_road_segment_pyg_dataset()
+        return (
+            network,
+            traj_dataset,
+            network.generate_road_segment_pyg_dataset(
+                include_coords=True, drop_labels=drop_label
+            ),
+        )
 
 
 # index is correct
@@ -281,7 +290,7 @@ def evaluate_model(args, data, network, trajectory):
     random.seed(args["seed"])
     np.random.seed(args["seed"])
     torch.manual_seed(args["seed"])
-    torch.cuda.manual_seed(args["seed"])    
+    torch.cuda.manual_seed(args["seed"])
     torch.cuda.manual_seed_all(args["seed"])
     torch.backends.cudnn.deterministic = True
 
@@ -393,6 +402,13 @@ if __name__ == "__main__":
         help="Seed for the random operations like train/test split",
         default=69,
         type=int,
+    )
+
+    parser.add_argument(
+        "-dl",
+        "--drop_label",
+        help="remove label from train dataset",
+        type=str,
     )
 
     args = vars(parser.parse_args())

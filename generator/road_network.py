@@ -1,5 +1,8 @@
+import warnings
 from dataclasses import dataclass, field
 from typing import List
+
+warnings.simplefilter(action="ignore", category=UserWarning)
 
 import geopandas as gpd
 import networkx as nx
@@ -20,8 +23,7 @@ except ImportError:
 
 try:
     import fmm
-    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
-                     STMATCHConfig)
+    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
 except ImportError:
     ...
 
@@ -229,14 +231,14 @@ class RoadNetwork:
             df["length"].max() - df["length"].min()
         )  # min max normalization
 
+        cats = ["lanes", "maxspeed"]
+        if "highway_enc" not in drop_labels:
+            cats.append("highway_enc")
+
         # Categorical features one hot encoding
         df = pd.get_dummies(
             df,
-            columns=list(
-                set(["highway_enc", "lanes", "maxspeed"]).symmetric_difference(
-                    set(drop_labels)
-                )
-            ),
+            columns=cats,
             drop_first=True,
         )
         # print(df.head(), df.shape)

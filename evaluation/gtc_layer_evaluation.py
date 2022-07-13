@@ -1,5 +1,5 @@
 """
-Generate scores for GTN Layer with different k-values
+Generate scores for GTc with different convolutions
 Split with different seeds to get better approximation
 """
 
@@ -16,10 +16,24 @@ import numpy as np
 import pandas as pd
 import torch
 from models import GTNModel
+from torch_geometric.nn import (
+    APPNP,
+    ARMAConv,
+    FAConv,
+    GatedGraphConv,
+    GCN2Conv,
+    GCNConv,
+    LEConv,
+    LGConv,
+    SGConv,
+    TAGConv,
+)
 
 from evaluate_models import (
     generate_dataset,
+    init_destination,
     init_meanspeed,
+    init_nextlocation,
     init_roadclf,
     init_traveltime,
 )
@@ -27,8 +41,22 @@ from evaluation import Evaluation
 
 
 def evaluate_k(args, data, network, trajectory):
-    seeds = [42, 69, 88, 420]
-    ks = [1, 2, 3]
+    seeds = [42, 69, 88, 420, 1234, 99, 102, 73, 10, 28]
+    convs = [
+        ("APPNP", APPNP, {"K": 10, "alpha": 0.1, "dropout": 0.5, "cached": True}),
+        ("ARMAConv", ARMAConv, {"dropout": 0.5}),
+        ("FAConv", FAConv, {"dropout": 0.5, "cached": True}),
+        ("GatedGraphConv", GatedGraphConv, {"num_layers": 1}),
+        ("GCN2Conv", GCN2Conv, {"alpha": 0.1, "cached": True}),
+        ("GCNConv", GCNConv, {"cached": True}),
+        ("GCNConv_imp", GCNConv, {"cached": True, "improved": True})(GCNConv, {}),
+        ("GCNConv_noself", GCNConv, {"add_self_loops": False})(LEConv, {}),
+        ("LGConv", LGConv, {}),
+        ("SGConv", SGConv, {"cached": True}),
+        ("SGConv_noself", SGConv, {"cached": True, "add_self_loops": False})(
+            TAGConv, {"K": 1}
+        ),
+    ]
 
     torch.backends.cudnn.deterministic = True
     torch.cuda.set_device(args["device"])
@@ -49,16 +77,20 @@ def evaluate_k(args, data, network, trajectory):
         eva.register_task(
             "traveltime", init_traveltime(args, trajectory, network, device)
         )
+        eva.register_task(
+            "nextlocation", init_traveltime(args, trajectory, network, device)
+        )
+        eva.register_task(
+            "destination", init_traveltime(args, trajectory, network, device)
+        )
 
-        for k in ks:
+        for name, conv, cargs in convs:
             model = GTNModel(
                 data,
                 device,
                 network,
                 trajectory,
-                load_traj_adj_path="../models/training/gtn_precalc_adj/traj_adj_k_{}_False.gz".format(
-                    k
-                ),
+                load_traj_adj_path="../models/training/gtn_precalc_adj/traj_adj_k_1.gz",
             )
             model.train(epochs=5000)
             eva.register_model("gtn_k_{}".format(k), model)

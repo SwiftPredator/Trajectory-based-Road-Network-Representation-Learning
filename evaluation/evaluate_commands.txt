@@ -1,1 +1,10 @@
 python -u evaluate_models.py -m "pca,gaegcn,node2vec,deepwalk" -t "traveltime,meanspeed,roadclf" -p ./results -d 1 -r 10000000 -e 30 -s 1
+
+
+# K evaluation commands
+
+nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 0 -r 10 -ss 1 -t roadclf -dl highway_enc
+nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10 -ss 1 -t meanspeed -dl avg_speed
+nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t traveltime
+nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t nextlocation
+nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t destination

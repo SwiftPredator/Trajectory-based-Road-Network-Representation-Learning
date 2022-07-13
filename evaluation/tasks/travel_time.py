@@ -203,7 +203,7 @@ class TTE_LSTM(nn.Module):
                 self.opt.step()
                 total_loss += loss.item()
 
-            print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
+            # print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
 
     def predict(self, loader, emb):
         self.eval()

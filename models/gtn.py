@@ -14,6 +14,7 @@ from scipy import sparse
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.nn import GAE, GATConv, GCNConv, InnerProductDecoder
 from torch_geometric.nn.conv import MessagePassing
+from torch_geometric.nn.norm import LayerNorm
 from torch_geometric.utils import (add_self_loops, from_networkx,
                                    negative_sampling, remove_self_loops)
 from torch_geometric.utils.num_nodes import maybe_num_nodes
@@ -27,31 +28,53 @@ class GTNModel(Model):
     def __init__(
         self,
         data,
+        adj,
+        device,
+        network,
+        traj_data,
+    ):
+        self.conv_model = GTCModel(data, device, network, traj_data, adj=adj)
+        self.struct_model = Traj2VecModel(data, network, adj, device)
+
+    def train(self):
+        ...
+
+
+class TrajectoryTransformer(nn.Module):
+    def __init__(self):
+        ...
+
+
+class GTCModel(Model):
+    def __init__(
+        self,
+        data,
         device,
         network,
         traj_data,
         emb_dim: str = 128,
-        load_traj_adj_path: str = None,
+        adj=None,
         k: int = 1,
         bidirectional=True,
         add_self_loops=True,
+        norm=False,
     ):
-        self.model = GTNSubConv(data.x.shape[1], emb_dim)
+        self.model = GTNSubConv(data.x.shape[1], emb_dim, norm=norm)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.model = self.model.to(device)
         self.device = device
         self.traj_data = traj_data["seg_seq"].tolist()
         self.network = network
         self.traj_to_node = self.generate_trajid_to_nodeid()
-        if load_traj_adj_path == None:
+        if adj is None:
             adj = self.generate_node_traj_adj(
                 k=k, bidirectional=bidirectional, add_self_loops=add_self_loops
             )
             np.savetxt(
                 "./traj_adj_k_" + str(k) + "_" + str(bidirectional) + ".gz", X=adj
             )
-        else:
-            adj = np.loadtxt(load_traj_adj_path)
+        # else:
+        # adj = np.loadtxt(load_traj_adj_path)
 
         self.train_data = self.transform_data(data, adj)
         self.train_data = self.train_data.to(device)
@@ -71,8 +94,8 @@ class GTNModel(Model):
             self.optimizer.step()
             avg_loss += loss.item()
 
-            if e > 0 and e % 1000 == 0:
-                print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
+            # if e > 0 and e % 1000 == 0:
+            #     print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
 
     def recon_loss(self, z, pos_edge_index, neg_edge_index=None):
         decoder = InnerProductDecoder()
@@ -173,12 +196,16 @@ class GTNModel(Model):
 
 
 class GTNSubConv(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int):
+    def __init__(self, in_dim: int, out_dim: int, norm=False):
         super().__init__()
-        self.conv = GCNConv(in_dim, out_dim)
+        self.conv = GCNConv(in_dim, out_dim, cached=True)
+        self.norm_layer = LayerNorm(out_dim)
+        self.norm = norm
 
     def forward(self, x, edge_index, edge_weight):
         x = self.conv(x.float(), edge_index, edge_weight)
+        if self.norm:
+            x = self.norm_layer(x)
         return x
 
 
@@ -187,10 +214,69 @@ class GTNConv(MessagePassing):
         ...
 
 
-class Traj2Vec(nn.Module):
+class Traj2VecModel(Model):
     def __init__(
         self,
         data,
+        network,
+        adj,
+        device,
+        emb_dim=128,
+        walk_length=30,
+        walks_per_node=25,
+        context_size=5,
+        num_neg=10,
+    ):
+        self.model = Traj2Vec(
+            data.edge_index,
+            network,
+            adj,
+            embedding_dim=emb_dim,
+            walk_length=walk_length,
+            context_size=context_size,
+            walks_per_node=walks_per_node,
+            num_negative_samples=num_neg,
+            sparse=True,
+        ).to(device)
+        self.loader = self.model.loader(batch_size=128, shuffle=True, num_workers=4)
+        self.device = device
+        self.data = data
+        self.optimizer = torch.optim.SparseAdam(list(self.model.parameters()), lr=0.01)
+
+    def train(self, epochs):
+        avg_loss = 0
+        for e in range(epochs):
+            self.model.train()
+            total_loss = 0
+            for pos_rw, neg_rw in self.loader:
+                self.optimizer.zero_grad()
+                loss = self.model.loss(pos_rw.to(self.device), neg_rw.to(self.device))
+                loss.backward()
+                self.optimizer.step()
+                total_loss += loss.item()
+            avg_loss += total_loss / len(self.loader)
+            if e > 0 and e % 1 == 0:
+                print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
+
+    def save_model(self, path="save/"):
+        torch.save(self.model.state_dict(), path + "model.pt")
+
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location=self.device))
+
+    def save_emb(self, path):
+        np.savetxt(path + "embedding.out", X=self.model().detach().cpu().numpy())
+
+    def load_emb(self, path=None):
+        if path:
+            self.emb = np.loadtxt(path)
+        return self.model().detach().cpu().numpy()
+
+
+class Traj2Vec(nn.Module):
+    def __init__(
+        self,
+        edge_index,
         network,
         adj,
         embedding_dim,
@@ -203,7 +289,7 @@ class Traj2Vec(nn.Module):
     ):
         super().__init__()
 
-        N = maybe_num_nodes(data.edge_index, num_nodes)
+        N = maybe_num_nodes(edge_index, num_nodes)
         self.adj = adj  # SparseTensor(row=row, col=col, sparse_sizes=(N, N))
         # self.adj = self.adj.to("cpu")
         self.network = network
