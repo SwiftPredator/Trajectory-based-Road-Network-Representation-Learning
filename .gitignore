@@ -4,7 +4,5 @@ experiments/cache/*
 models/__pycache__/*
 *.pyc
 *.csv
-models/model_states/*
-*.pt
 *.out
 models/hrnr_original/*
