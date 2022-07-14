@@ -18,15 +18,9 @@ import pandas as pd
 import torch
 from models import GTCModel
 
-from evaluate_models import (
-    generate_dataset,
-    init_destination,
-    init_meanspeed,
-    init_nextlocation,
-    init_roadclf,
-    init_traveltime,
-)
+from evaluate_models import generate_dataset
 from evaluation import Evaluation
+from tasks.task_loader import *
 
 
 def evaluate_k(args, data, network, trajectory):

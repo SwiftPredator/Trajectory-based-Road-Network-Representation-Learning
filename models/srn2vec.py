@@ -22,6 +22,7 @@ class SRN2VecModel(Model):
         device,
         network,
         emb_dim: int = 128,
+        remove_highway_label=False,
     ):
         """
         Initialize SRN2Vec
@@ -33,10 +34,12 @@ class SRN2VecModel(Model):
         """
         self.device = device
         self.emb_dim = emb_dim
-        self.model = SRN2Vec(network, device=device, emb_dim=emb_dim, out_dim=2)
+        out_dim = 1 if remove_highway_label else 2
+        self.model = SRN2Vec(network, device=device, emb_dim=emb_dim, out_dim=out_dim)
         self.optim = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.loss_func = nn.BCELoss()
         self.network = network
+        self.remove_highway_label = remove_highway_label
         # self.data = data
 
     def train(self, epochs: int = 1000, batch_size: int = 128):
@@ -61,7 +64,7 @@ class SRN2VecModel(Model):
 
                 self.optim.zero_grad()
                 yh = self.model(X)
-                loss = self.loss_func(yh.squeeze(), y)
+                loss = self.loss_func(yh.squeeze(), y.squeeze())
 
                 loss.backward()
                 self.optim.step()
@@ -271,6 +274,8 @@ class SRN2VecModel(Model):
     def load_dataset(self, path: str):
         with open(path, "r") as fp:
             self.data = np.array(json.load(fp))
+        if self.remove_highway_label:
+            self.data = self.data[:, :-1]
 
     def save_model(self, path="save/"):
         torch.save(self.model.state_dict(), os.path.join(path + "/model.pt"))

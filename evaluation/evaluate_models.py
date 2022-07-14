@@ -30,17 +30,9 @@ from models import (
     Toast,
     Traj2VecModel,
 )
-from sklearn import linear_model, metrics
 
 from evaluation import Evaluation
-from tasks import (
-    DestinationPrediciton,
-    MeanSpeedRegTask,
-    NextLocationPrediciton,
-    RoadTypeClfTask,
-    RoutePlanning,
-    TravelTimeEstimation,
-)
+from tasks.task_loader import *
 
 model_map = {
     "gtn": (GTNModel, {}, "../models/model_states/gtn/"),
@@ -64,7 +56,9 @@ model_map = {
     "rfn": (RFNModel, {}, "../models/model_states/rfn"),
     "hrnr": (
         HRNRModel,
-        {"data_path": "../models/training/hrnr_data"},
+        {
+            "data_path": "../models/training/hrnr_data"
+        },  # if want to evaluate completly without road label change to './models/training/hrnr_data_noroad'
         "../models/model_states/hrnr",
     ),
 }
@@ -86,6 +80,7 @@ def generate_dataset(args):
         "../datasets/trajectories/Porto/road_segment_map_final.csv", nrows=args["nrows"]
     )
     traj_dataset = trajectory.generate_TTE_datatset()
+    drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
 
     if args["speed"] == 1:
         traj_features = pd.read_csv(
@@ -104,7 +99,6 @@ def generate_dataset(args):
         )  # min max normalization
         traj_features.fillna(0, inplace=True)
 
-        drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
         return (
             network,
             traj_dataset,
@@ -125,161 +119,41 @@ def generate_dataset(args):
         )
 
 
-# index is correct
-def init_roadclf(args, network):
-    decoder = linear_model.LogisticRegression(
-        multi_class="multinomial", max_iter=1000, n_jobs=-1
-    )
-    y = np.array(
-        [network.gdf_edges.loc[n]["highway_enc"] for n in network.line_graph.nodes]
-    )
-    roadclf = RoadTypeClfTask(decoder, y, seed=args["seed"])
-    roadclf.register_metric(
-        name="f1_micro", metric_func=metrics.f1_score, args={"average": "micro"}
-    )
-    roadclf.register_metric(
-        name="f1_macro", metric_func=metrics.f1_score, args={"average": "macro"}
-    )
-    roadclf.register_metric(
-        name="f1_weighted",
-        metric_func=metrics.f1_score,
-        args={"average": "weighted"},
-    )
-    roadclf.register_metric(
-        name="accuracy",
-        metric_func=metrics.accuracy_score,
-        args={"normalize": True},
-    )
-    roadclf.register_metric(
-        name="AUC",
-        metric_func=metrics.roc_auc_score,
-        args={"multi_class": "ovo"},
-        proba=True,
+def get_model_path_for_task(base_path, tasks, model_name):
+    """This method appends the fitting model state to the path.
+    The model state dict must match the dataset and task.
+    For example Road Type clf task should exclude road type and therefore needs the state dict trained without road type.
+    The model state dict names are normed:
+        - model_base.pt for model with all features exluding speed features (except gtn, gtc) or no features (node2vec etc.)
+        - model_noroad.pt for model trained with all features excluding the road label (for roadclf task)
+        - model_nospeed.pt for tained with all features exluding the mean speed (for mean speed prediction task)
+
+    Args:
+        base_path (_type_): _description_
+        tasks (_type_): desc
+    """
+    if model_name in ["node2vec", "deepwalk", "traj2vec", "toast", "pca"]:
+        return os.path.join(base_path, "model_base.pt")
+
+    if "meanspeed" in tasks and model_name in ["gtc", "gtn"]:
+        assert len(tasks) == 1
+        return os.path.join(base_path, "model_nospeed.pt")
+    if "roadclf" in tasks:
+        assert len(tasks) == 1
+        return (
+            os.path.join(base_path, "model_noroad.pt")
+            if model_name != "rfn"
+            else os.path.join(base_path, "model_noroad.params")
+        )
+
+    return (
+        os.path.join(base_path, "model_base.pt")
+        if model_name != "rfn"
+        else os.path.join(base_path, "model_noroad.params")
     )
 
-    return roadclf
 
-
-def init_traveltime(args, traj_data, network, device):
-    travel_time_est = TravelTimeEstimation(
-        traj_dataset=traj_data,
-        network=network,
-        device=device,
-        batch_size=128,
-        epochs=args["epochs"],
-        seed=args["seed"],
-    )
-    travel_time_est.register_metric(
-        name="MSE", metric_func=metrics.mean_squared_error, args={}
-    )
-    travel_time_est.register_metric(
-        name="MAE", metric_func=metrics.mean_absolute_error, args={}
-    )
-    travel_time_est.register_metric(
-        name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
-    )
-    travel_time_est.register_metric(
-        name="MAPE", metric_func=metrics.mean_absolute_percentage_error, args={}
-    )
-
-    return travel_time_est
-
-
-# label index is right here;
-def init_meanspeed(args, network):
-    tf = pd.read_csv("../datasets/trajectories/Porto/speed_features_unnormalized.csv")
-    tf.set_index(["u", "v", "key"], inplace=True)
-    map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
-    tf["idx"] = tf.index.map(map_id)
-    tf.sort_values(by="idx", axis=0, inplace=True)
-    decoder = linear_model.LinearRegression(fit_intercept=True)
-    y = tf["avg_speed"]
-    y.fillna(0, inplace=True)
-    y = y.round(2)
-    mean_speed_reg = MeanSpeedRegTask(decoder, y, seed=args["seed"])
-
-    mean_speed_reg.register_metric(
-        name="MSE", metric_func=metrics.mean_squared_error, args={}
-    )
-    mean_speed_reg.register_metric(
-        name="MAE", metric_func=metrics.mean_absolute_error, args={}
-    )
-    mean_speed_reg.register_metric(
-        name="RMSE", metric_func=metrics.mean_squared_error, args={"squared": False}
-    )
-
-    return mean_speed_reg
-
-
-def init_nextlocation(args, traj_data, network, device):
-    nextlocation_pred = NextLocationPrediciton(
-        traj_dataset=traj_data,
-        network=network,
-        device=device,
-        batch_size=256,
-        epochs=args["epochs"],
-        seed=args["seed"],
-    )
-
-    nextlocation_pred.register_metric(
-        name="accuracy",
-        metric_func=metrics.accuracy_score,
-        args={"normalize": True},
-    )
-
-    return nextlocation_pred
-
-
-def init_destination(args, traj_data, network, device):
-    destination_pred = DestinationPrediciton(
-        traj_dataset=traj_data,
-        network=network,
-        device=device,
-        batch_size=256,
-        epochs=args["epochs"],
-        seed=args["seed"],
-    )
-
-    destination_pred.register_metric(
-        name="accuracy",
-        metric_func=metrics.accuracy_score,
-        args={"normalize": True},
-    )
-
-    return destination_pred
-
-
-def init_route(args, traj_data, network, device):
-    route_pred = RoutePlanning(
-        traj_dataset=traj_data,
-        network=network,
-        device=device,
-        batch_size=256,
-        epochs=args["epochs"],
-        seed=args["seed"],
-    )
-
-    route_pred.register_metric(
-        name="accuracy",
-        metric_func=metrics.accuracy_score,
-        args={"normalize": True},
-    )
-    route_pred.register_metric(
-        name="f1_micro", metric_func=metrics.f1_score, args={"average": "micro"}
-    )
-    route_pred.register_metric(
-        name="f1_macro", metric_func=metrics.f1_score, args={"average": "macro"}
-    )
-    route_pred.register_metric(
-        name="f1_weighted",
-        metric_func=metrics.f1_score,
-        args={"average": "weighted"},
-    )
-
-    return route_pred
-
-
-def evaluate_model(args, data, network, trajectory):
+def evaluate_model(args, data, network, trajectory, seed):
     """
     trains the model given by the args argument on the corresponding data
 
@@ -287,11 +161,12 @@ def evaluate_model(args, data, network, trajectory):
         args (dict): Args from arg parser
         data (pyg Data): Data to train on
     """
-    random.seed(args["seed"])
-    np.random.seed(args["seed"])
-    torch.manual_seed(args["seed"])
-    torch.cuda.manual_seed(args["seed"])
-    torch.cuda.manual_seed_all(args["seed"])
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
 
     torch.cuda.set_device(args["device"])
@@ -307,32 +182,31 @@ def evaluate_model(args, data, network, trajectory):
     eva = Evaluation()
 
     if "roadclf" in tasks:
-        eva.register_task("roadclf", init_roadclf(args, network))
+        eva.register_task("roadclf", init_roadclf(args, network, seed))
 
     if "traveltime" in tasks:
         eva.register_task(
-            "timetravel", init_traveltime(args, trajectory, network, device)
+            "timetravel", init_traveltime(args, trajectory, network, device, seed)
         )
 
     if "meanspeed" in tasks:
-        eva.register_task("meanspeed", init_meanspeed(args, network))
+        eva.register_task("meanspeed", init_meanspeed(args, network, seed))
 
     if "nextlocation" in tasks:
         eva.register_task(
-            "nextlocation", init_nextlocation(args, trajectory, network, device)
+            "nextlocation", init_nextlocation(args, trajectory, network, device, seed)
         )
 
     if "destination" in tasks:
         eva.register_task(
-            "destination", init_destination(args, trajectory, network, device)
+            "destination", init_destination(args, trajectory, network, device, seed)
         )
 
     if "route" in tasks:
-        eva.register_task("route", init_route(args, trajectory, network, device))
+        eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
     for m in models:
         model, margs, model_path = model_map[m]
-        model_file_name = "model.params" if m == "rfn" else "model.pt"
         if m in ["toast", "srn2vec", "rfn", "hrnr"]:
             margs["network"] = network
         if m in ["gaegcn_no_features", "gaegat_no_features"]:
@@ -341,18 +215,16 @@ def evaluate_model(args, data, network, trajectory):
         if m in ["gtn_no_speed", "gtn_speed"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
+        if m in ["rfn", "hrnr"] and args["drop_label"] == "highway_enc":
+            margs["remove_highway_label"] = True
 
         model = model(data, device=device, **margs)
-        model.load_model(path=os.path.join(model_path, model_file_name))
+        model.load_model(path=get_model_path_for_task(model_path, tasks, m))
         eva.register_model(m, model)
 
-    path = os.path.join(
-        args["path"],
-        str(datetime.now().strftime("%m-%d-%Y-%H-%M")),
-    )
-    os.mkdir(path)
+    res = eva.run()
 
-    eva.run(save_dir=path)
+    return res
 
 
 if __name__ == "__main__":
@@ -398,10 +270,10 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-se",
-        "--seed",
+        "--seeds",
         help="Seed for the random operations like train/test split",
-        default=69,
-        type=int,
+        default="69",
+        type=str,
     )
 
     parser.add_argument(
@@ -414,4 +286,24 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     network, trajectory, data = generate_dataset(args)
-    evaluate_model(args, data, network, trajectory)
+    seeds = [s for s in args["seeds"].split(",")]
+    results = []
+    for seed in seeds:
+        res = evaluate_model(args, data, network, trajectory, int(seed))
+
+        if len(results) == 0:
+            for name, res in res:
+                res["seed"] = seed
+                results.append((name, res))
+        else:
+            for i, ((name, full_res), (_, seed_res)) in enumerate(zip(results, res)):
+                seed_res["seed"] = seed
+                results[i] = (name, pd.concat([full_res, seed_res], axis=0))
+
+    path = os.path.join(
+        args["path"],
+        str(datetime.now().strftime("%m-%d-%Y-%H-%M")),
+    )
+    os.mkdir(path)
+    for name, res in results:
+        res.to_csv(path + "/" + name + ".csv")

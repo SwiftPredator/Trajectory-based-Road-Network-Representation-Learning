@@ -42,13 +42,17 @@ class RFNModel(Model):
     It uses mxnet to build the model.
     """
 
-    def __init__(self, data, device, network, emb_dim: int = 128):
+    def __init__(
+        self, data, device, network, emb_dim: int = 128, remove_highway_label=False
+    ):
         self.loss_func = ReconLoss()
         self.optimizer = "adam"
         self.lr = 0.001
         self.emb_dim = emb_dim
 
-        self.city = generate_required_city_graph("Porto", network)
+        self.city = generate_required_city_graph(
+            "Porto", network, remove_highway_label=remove_highway_label
+        )
         self._build_model()
 
     def _build_model(self):
@@ -117,7 +121,7 @@ class RFNModel(Model):
     def initialize(self):
         self.rfn.initialize()
         params = self.rfn.collect_params()
-        params.reset_ctx(ctx=gpu())
+        params.reset_ctx(ctx=gpu(1))
         return params
 
     def save_model(self, path):

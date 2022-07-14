@@ -18,11 +18,19 @@ from .training.hrnr_data_generation import create_adj, create_features
 class HRNRModel(Model):
     """Adapter class for hrnr model"""
 
-    def __init__(self, data, device, network, data_path=None, emb_dim=128):
+    def __init__(
+        self,
+        data,
+        device,
+        network,
+        data_path=None,
+        emb_dim=128,
+        remove_highway_label=False,
+    ):
         self.network = network
         self.device = device
         self.data = data
-
+        self.remove_highway_label = remove_highway_label
         self.get_data(path=data_path)
 
         self.model = GraphEncoderTL(
@@ -79,7 +87,9 @@ class HRNRModel(Model):
 
         node_count_interest = len(self.network.line_graph.nodes)
         adj = create_adj(self.network)
-        features = create_features(self.network)
+        features = create_features(
+            self.network, remove_highway_label=self.remove_highway_label
+        )
         adj = adj[:node_count_interest, :node_count_interest]
         features = features[:node_count_interest]
         struct_assign = struct_assign[:node_count_interest]

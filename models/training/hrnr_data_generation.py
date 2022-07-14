@@ -39,14 +39,16 @@ def create_adj(network):
     return adj
 
 
-def create_features(network):
+def create_features(network, remove_highway_label: bool):
     G = network.line_graph
     idxs = [n for n in G.nodes]
     data = network.gdf_edges.loc[idxs, ["lanes", "highway", "length"]]
     data["id"] = np.arange(data.shape[0])
     data["lanes"] = data["lanes"].str.extract(r"(\w+)")
     data["lanes"].fillna(1, inplace=True)
-    data["highway"] = pd.factorize(data["highway"])[0]
+    data["highway"] = (
+        pd.factorize(data["highway"])[0] if not remove_highway_label else 0
+    )
     data = data.to_numpy()
 
     # type_set = pd.Series(data[:, 1])
@@ -93,9 +95,9 @@ def create_tadj(network, trajectory):
     return np.array(tadj)
 
 
-def get_data(network, trajectory, load_path=None):
+def get_data(network, trajectory, load_path=None, remove_highway_label=False):
     adj = create_adj(network)
-    node_features = create_features(network)
+    node_features = create_features(network, remove_highway_label=remove_highway_label)
     sp_labels = create_spectral_cluster(adj)
 
     node_features = node_features.tolist()

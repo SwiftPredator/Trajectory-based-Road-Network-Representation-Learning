@@ -169,7 +169,7 @@ def add_between_edge_attrib(D, N=4):
     return X_B
 
 
-def get_edge_attrib(G: nx.MultiDiGraph):
+def get_edge_attrib(G: nx.MultiDiGraph, remove_highway_label=False):
     check_lists = [
         "residential",
         "unclassified",
@@ -194,12 +194,13 @@ def get_edge_attrib(G: nx.MultiDiGraph):
         highway_type = info["highway"]
         i = 0
         for valid_highway_type in check_lists:
-            if type(highway_type) is list:
-                if valid_highway_type in highway_type:
-                    X_E[edge_index, i] = 1
-            else:
-                if valid_highway_type == highway_type:
-                    X_E[edge_index, i] = 1
+            if not remove_highway_label:
+                if type(highway_type) is list:
+                    if valid_highway_type in highway_type:
+                        X_E[edge_index, i] = 1
+                else:
+                    if valid_highway_type == highway_type:
+                        X_E[edge_index, i] = 1
             i += 1
         X_E[edge_index, i] = info["length"] / 100.0
 
@@ -222,7 +223,7 @@ def get_edge_target_y(G: nx.MultiDiGraph, target_value="speed_kph"):
     return edges[target_value].values / 60
 
 
-def generate_required_city_graph(city_name, network):
+def generate_required_city_graph(city_name, network, remove_highway_label=False):
 
     G = network.G
     D = network.line_graph
@@ -247,7 +248,7 @@ def generate_required_city_graph(city_name, network):
             info[a] = b
 
     X_B_np = add_between_edge_attrib(D)
-    X_E_np = get_edge_attrib(G)
+    X_E_np = get_edge_attrib(G, remove_highway_label=remove_highway_label)
     X_V_np = get_vertex_attrib(G)
     # y_np = get_edge_target_y(G, target_value="speed_kph")
 
@@ -276,10 +277,10 @@ def generate_required_city_graph(city_name, network):
     primal_graph = G
     dual_graph = D
 
-    X_V = nd.array(X_V_np, ctx=gpu())
-    X_E = nd.array(X_E_np, ctx=gpu())
-    X_B = nd.array(X_B_np, ctx=gpu())
-    y = nd.array(y_np, ctx=gpu())
+    X_V = nd.array(X_V_np, ctx=gpu(1))
+    X_E = nd.array(X_E_np, ctx=gpu(1))
+    X_B = nd.array(X_B_np, ctx=gpu(1))
+    y = nd.array(y_np, ctx=gpu(1))
 
     rfncity = RFNCity(city_name, primal_graph, dual_graph)
     rfncity.set_features(X_V, X_E, X_B, y)
@@ -419,8 +420,8 @@ def mask_neighborhoods(neighborhoods_list, is_dual=False):
     max_no_neighbors = max(len(n) for n in neighborhoods_list) if not is_dual else 1
     shape = (len(neighborhoods_list), max_no_neighbors)
 
-    neighborhoods_array = nd.zeros(shape=shape, dtype=np.int32, ctx=gpu())
-    mask = nd.zeros(shape=shape, ctx=gpu())
+    neighborhoods_array = nd.zeros(shape=shape, dtype=np.int32, ctx=gpu(1))
+    mask = nd.zeros(shape=shape, ctx=gpu(1))
 
     for idx, neighborhood in enumerate(neighborhoods_list):
         neighborhood_size = len(neighborhood)

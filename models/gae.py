@@ -62,10 +62,10 @@ class GAEModel(Model):
 
 
 class GCNEncoder(nn.Module):
-    def __init__(self, in_channels, out_channels, layers):
+    def __init__(self, in_channels, out_channels, layer_num):
         super().__init__()
         self.layers = nn.Sequential()
-        if layers == 2:
+        if layer_num == 2:
             self.layers.append(GCNConv(in_channels, 2 * out_channels))
             self.layers.append(GCNConv(2 * out_channels, out_channels))
         else:
@@ -80,11 +80,18 @@ class GCNEncoder(nn.Module):
 
 
 class GATEncoder(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, layer_num):
         super().__init__()
-        self.conv1 = GATConv(in_channels, 2 * out_channels)
-        self.conv2 = GATConv(2 * out_channels, out_channels)
+        self.layers = nn.Sequential()
+        if layer_num == 2:
+            self.layers.append(GATConv(in_channels, 2 * out_channels))
+            self.layers.append(GATConv(2 * out_channels, out_channels))
+        else:
+            self.layers.append(GATConv(in_channels, out_channels))
 
     def forward(self, x, edge_index):
-        x = self.conv1(x.float(), edge_index).relu()
-        return self.conv2(x, edge_index)
+        x = x.float()
+        for layer in self.layers[:-1]:
+            x = layer(x, edge_index).relu()
+
+        return self.layers[-1](x, edge_index)
