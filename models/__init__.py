@@ -1,5 +1,6 @@
 from .gae import GAEModel, GATEncoder, GCNEncoder
-from .gtn import GTNModel, Traj2VecModel, GTCModel
+from .gtc import GTCModel
+from .gtn import GTNModel
 from .hrnr import HRNRModel
 from .model import Model
 from .node2vec import Node2VecModel
@@ -7,3 +8,4 @@ from .pca import PCAModel
 from .rfn import RFNModel
 from .srn2vec import SRN2VecModel
 from .toast import Toast
+from .traj2vec import Traj2VecModel

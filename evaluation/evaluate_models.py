@@ -37,7 +37,7 @@ from tasks.task_loader import *
 model_map = {
     "gtn": (GTNModel, {}, "../models/model_states/gtn/"),
     "gtc": (GTCModel, {}, "../models/model_states/gtc/"),
-    "traj2vec": (Traj2VecModel, {}, "..models/model_states/traj2vec"),
+    "traj2vec": (Traj2VecModel, {}, "../models/model_states/traj2vec"),
     "gaegcn": (
         GAEModel,
         {"encoder": GCNEncoder},
@@ -212,9 +212,18 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m in ["gaegcn_no_features", "gaegat_no_features"]:
             data.x = None
             data = T.OneHotDegree(128)(data)
-        if m in ["gtn_no_speed", "gtn_speed"]:
+        if m in ["gtn", "gtc"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
+            margs["adj"] = np.loadtxt(
+                "../models/training/gtn_precalc_adj/traj_adj_k_1.gz"
+            )  # change to desired path
+        if m == "traj2vec":
+            margs["network"] = network
+            margs["adj"] = np.loadtxt(
+                "../models/training/gtn_precalc_adj/traj_adj_k_1.gz"
+            )
+
         if m in ["rfn", "hrnr"] and args["drop_label"] == "highway_enc":
             margs["remove_highway_label"] = True
 

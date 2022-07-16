@@ -1,4 +1,6 @@
+import math
 import os
+import random
 from ast import walk
 from operator import itemgetter
 from turtle import forward
@@ -11,445 +13,398 @@ import torch.nn as nn
 import torch.nn.functional as F
 from _walker import random_walks as _random_walks
 from scipy import sparse
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import DataLoader, Dataset
-from torch_geometric.nn import GAE, GATConv, GCNConv, InnerProductDecoder
+from torch_geometric.nn import GAE, GATConv, GCNConv, InnerProductDecoder, SGConv
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.norm import LayerNorm
-from torch_geometric.utils import (add_self_loops, from_networkx,
-                                   negative_sampling, remove_self_loops)
+from torch_geometric.utils import (
+    add_self_loops,
+    from_networkx,
+    negative_sampling,
+    remove_self_loops,
+)
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from .model import Model
+from .utils import generate_trajid_to_nodeid
 
 
 class GTNModel(Model):
     def __init__(
         self,
         data,
-        adj,
         device,
         network,
         traj_data,
+        init_emb,
+        batch_size=64,
+        emb_dim=256,
+        nlayers=2,
+        nheads=4,
+        hidden_dim=256,
+        max_len=150,
     ):
-        self.conv_model = GTCModel(data, device, network, traj_data, adj=adj)
-        self.struct_model = Traj2VecModel(data, network, adj, device)
-
-    def train(self):
-        ...
-
-
-class TrajectoryTransformer(nn.Module):
-    def __init__(self):
-        ...
-
-
-class GTCModel(Model):
-    def __init__(
-        self,
-        data,
-        device,
-        network,
-        traj_data,
-        emb_dim: str = 128,
-        adj=None,
-        k: int = 1,
-        bidirectional=True,
-        add_self_loops=True,
-        norm=False,
-    ):
-        self.model = GTNSubConv(data.x.shape[1], emb_dim, norm=norm)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+        self.model = BertModel(
+            emb_dim, nlayers, len(network.line_graph.nodes), nheads, hidden_dim, max_len
+        )
+        self.model.init_token_embed(init_emb)
         self.model = self.model.to(device)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.device = device
         self.traj_data = traj_data["seg_seq"].tolist()
         self.network = network
-        self.traj_to_node = self.generate_trajid_to_nodeid()
-        if adj is None:
-            adj = self.generate_node_traj_adj(
-                k=k, bidirectional=bidirectional, add_self_loops=add_self_loops
-            )
-            np.savetxt(
-                "./traj_adj_k_" + str(k) + "_" + str(bidirectional) + ".gz", X=adj
-            )
-        # else:
-        # adj = np.loadtxt(load_traj_adj_path)
-
-        self.train_data = self.transform_data(data, adj)
-        self.train_data = self.train_data.to(device)
+        self.traj_to_node = generate_trajid_to_nodeid(network)
+        self.train_loader = DataLoader(
+            TrajectoryDataset(self.traj_data, self.network, self.traj_to_node),
+            batch_size=batch_size,
+            shuffle=True,
+        )
+        self.loss_func = nn.CrossEntropyLoss(reduction="none")
 
     def train(self, epochs: int = 1000):
         avg_loss = 0
         for e in range(epochs):
             self.model.train()
-            self.optimizer.zero_grad()
-            z = self.model(
-                self.train_data.x,
-                self.train_data.edge_traj_index,
-                self.train_data.edge_weight,
-            )
-            loss = self.recon_loss(z, self.train_data.edge_traj_index)
-            loss.backward()
-            self.optimizer.step()
-            avg_loss += loss.item()
-
-            # if e > 0 and e % 1000 == 0:
-            #     print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
-
-    def recon_loss(self, z, pos_edge_index, neg_edge_index=None):
-        decoder = InnerProductDecoder()
-        EPS = 1e-15
-
-        pos_loss = -torch.log(decoder(z, pos_edge_index, sigmoid=True) + EPS).mean()
-
-        # Do not include self-loops in negative samples
-        pos_edge_index, _ = remove_self_loops(pos_edge_index)
-        pos_edge_index, _ = add_self_loops(pos_edge_index)
-        if neg_edge_index is None:
-            neg_edge_index = negative_sampling(pos_edge_index, z.size(0))
-        neg_loss = -torch.log(1 - decoder(z, neg_edge_index, sigmoid=True) + EPS).mean()
-
-        return pos_loss + neg_loss
-
-    def transform_data(self, data, adj):
-        G = nx.from_numpy_array(adj.T, create_using=nx.DiGraph)
-        data_traj = from_networkx(G)
-        data.edge_traj_index = data_traj.edge_index
-        data.edge_weight = data_traj.weight
-
-        return data
-
-    def generate_node_traj_adj(
-        self, k: int = np.inf, bidirectional=True, add_self_loops=True
-    ):
-        nodes = list(self.network.line_graph.nodes)
-        adj = nx.to_numpy_array(self.network.line_graph)
-        np.fill_diagonal(adj, 0)
-
-        if add_self_loops:
-            adj += np.eye(len(nodes), len(nodes))
-
-        for traj in tqdm(self.traj_data):
-            # print(traj)
-            for i, traj_node in enumerate(traj):
-                if k == -1:
-                    k = len(traj)
-                left_slice, right_slice = min(k, i) if bidirectional else 0, min(
-                    k + 1, len(traj) - i
+            total_loss = 0
+            for i, data in enumerate(self.train_loader):
+                data = {key: value.to(self.device) for key, value in data.items()}
+                out = self.model.forward(
+                    data["traj_input"], data["input_mask"], data["masked_pos"]
                 )
-                traj_nodes = traj[(i - left_slice) : (i + right_slice)]
-                # convert traj_nodes to graph_nodes
-                target = itemgetter(traj_node)(self.traj_to_node)
-                context = itemgetter(*traj_nodes)(self.traj_to_node)
-                adj[target, context] += 1
-        # remove self weighting if no self loops should be allowed
-        if not add_self_loops:
-            np.fill_diagonal(adj, 0)
-            zero_rows = np.where(~adj.any(axis=1))[0]
-            for idx in zero_rows:
-                adj[idx, idx] = 1
 
-        # norm adj row wise to get probs
-        rowsum = adj.sum(axis=1, keepdims=True)
-        adj = adj / rowsum
+                loss = self.loss_func(out.transpose(1, 2), data["masked_tokens"])
+                loss = (loss * data["masked_weights"].float()).mean()
 
-        # convert to edge_index
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+                avg_loss += loss.item()
 
-        return adj
+                if i % 1000 == 0:
+                    print("Epoch: {}, iter {} loss: {}".format(e, i, loss.item()))
 
-    def generate_trajid_to_nodeid(self):
-        map = {}
-        nodes = list(self.network.line_graph.nodes)
-        for index, id in zip(self.network.gdf_edges.index, self.network.gdf_edges.fid):
-            map[id] = nodes.index(index)
+            # if e > 0 and e % 1 == 0:
+            #     print(
+            #         "Epoch: {}, avg_loss: {}".format(
+            #             e, avg_loss / len(self.train_loader)
+            #         )
+            #     )
+            #     avg_loss = 0
 
-        return map
-
-    def save_model(self, path="save/"):
-        torch.save(self.model.state_dict(), os.path.join(path + "/model.pt"))
-
-    def load_model(self, path):
-        self.model.load_state_dict(torch.load(path, map_location=self.device))
-
-    def save_emb(self, path):
-        np.savetxt(
-            os.path.join(path + "/embedding.out"),
-            X=self.model.encode(self.train_data.x, self.train_data.edge_index)
-            .detach()
-            .cpu()
-            .numpy(),
-        )
-
-    def load_emb(self, path=None):
-        if path:
-            return np.loadtxt(path)
-        return (
-            self.model(
-                self.train_data.x,
-                self.train_data.edge_traj_index,
-                self.train_data.edge_weight,
-            )
-            .detach()
-            .cpu()
-        )
-
-
-class GTNSubConv(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, norm=False):
-        super().__init__()
-        self.conv = GCNConv(in_dim, out_dim, cached=True)
-        self.norm_layer = LayerNorm(out_dim)
-        self.norm = norm
-
-    def forward(self, x, edge_index, edge_weight):
-        x = self.conv(x.float(), edge_index, edge_weight)
-        if self.norm:
-            x = self.norm_layer(x)
-        return x
-
-
-class GTNConv(MessagePassing):
-    def __init__(self, in_channels: int, out_channels: int):
+    def load_model():
         ...
 
 
-class Traj2VecModel(Model):
+def gelu(x):
+    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+
+class TrajectoryTransformer(nn.Module):
     def __init__(
-        self,
-        data,
-        network,
-        adj,
-        device,
-        emb_dim=128,
-        walk_length=30,
-        walks_per_node=25,
-        context_size=5,
-        num_neg=10,
-    ):
-        self.model = Traj2Vec(
-            data.edge_index,
-            network,
-            adj,
-            embedding_dim=emb_dim,
-            walk_length=walk_length,
-            context_size=context_size,
-            walks_per_node=walks_per_node,
-            num_negative_samples=num_neg,
-            sparse=True,
-        ).to(device)
-        self.loader = self.model.loader(batch_size=128, shuffle=True, num_workers=4)
-        self.device = device
-        self.data = data
-        self.optimizer = torch.optim.SparseAdam(list(self.model.parameters()), lr=0.01)
-
-    def train(self, epochs):
-        avg_loss = 0
-        for e in range(epochs):
-            self.model.train()
-            total_loss = 0
-            for pos_rw, neg_rw in self.loader:
-                self.optimizer.zero_grad()
-                loss = self.model.loss(pos_rw.to(self.device), neg_rw.to(self.device))
-                loss.backward()
-                self.optimizer.step()
-                total_loss += loss.item()
-            avg_loss += total_loss / len(self.loader)
-            if e > 0 and e % 1 == 0:
-                print("Epoch: {}, avg_loss: {}".format(e, avg_loss / e))
-
-    def save_model(self, path="save/"):
-        torch.save(self.model.state_dict(), path + "model.pt")
-
-    def load_model(self, path):
-        self.model.load_state_dict(torch.load(path, map_location=self.device))
-
-    def save_emb(self, path):
-        np.savetxt(path + "embedding.out", X=self.model().detach().cpu().numpy())
-
-    def load_emb(self, path=None):
-        if path:
-            self.emb = np.loadtxt(path)
-        return self.model().detach().cpu().numpy()
-
-
-class Traj2Vec(nn.Module):
-    def __init__(
-        self,
-        edge_index,
-        network,
-        adj,
-        embedding_dim,
-        walk_length,
-        context_size,
-        walks_per_node=1,
-        num_negative_samples=1,
-        num_nodes=None,
-        sparse=True,
+        self, ntokens, emb_dim=128, dropout=0.5, nhead=2, hidden_dim=128, nlayers=2
     ):
         super().__init__()
+        self.pos_encoder = PositionalEncoding(emb_dim * 2, dropout)
+        encoder_layers = TransformerEncoderLayer(
+            emb_dim * 2, nhead, hidden_dim, dropout, batch_first=True
+        )
+        self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
+        self.encoder = nn.Embedding(ntokens, emb_dim * 2)
+        self.decoder = nn.Linear(emb_dim * 2, ntokens)
+        self.linear = nn.Linear(emb_dim * 2, emb_dim * 2)
+        self.activ2 = gelu
+        self.norm = LayerNorm(hidden_dim)
+        self.emb_dim = emb_dim
 
-        N = maybe_num_nodes(edge_index, num_nodes)
-        self.adj = adj  # SparseTensor(row=row, col=col, sparse_sizes=(N, N))
-        # self.adj = self.adj.to("cpu")
+    def init_embed(self, embed) -> None:
+        self.encoder.weight.data = embed
+
+    def forward(self, src, src_mask, masked_pos):
+        """
+        Args:
+            src: Tensor, shape [batch_size, seq_len]
+            src_mask: Tensor, shape [seq_len, seq_len]
+
+        Returns:
+            output Tensor of shape [batch_size, seq_len, ntoken]
+        """
+        src = self.encoder(src) * math.sqrt(self.emb_dim * 2)
+        src = self.pos_encoder(src)
+        h = self.transformer_encoder(src, src_key_padding_mask=src_mask)
+        masked_pos = masked_pos[:, :, None].expand(-1, -1, h.size(-1))  # B x S x D
+        h_masked = torch.gather(h, 1, masked_pos)
+        h_masked = self.norm(self.activ2(self.linear(h_masked)))
+
+        output = self.decoder(h_masked)
+
+        return output
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, emb_dim: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, emb_dim, 2) * (-math.log(10000.0) / emb_dim)
+        )
+        pe = torch.zeros(1, max_len, emb_dim)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor, shape [batch_size, seq_len, embedding_dim]
+        """
+        x = x + self.pe[:, : x.size(1)]
+        return self.dropout(x)
+
+
+class TrajectoryDataset(Dataset):
+    def __init__(self, trajs, network, traj_map, seq_len=150, mask_ratio=0.25):
+        self.trajs = trajs
         self.network = network
-        # self.traj_data = Traj2Vec.map_traj_to_node_ids(traj_data, network)
-        self.EPS = 1e-15
+        self.seq_len = seq_len
+        self.mask_ratio = mask_ratio
+        self.traj_map = traj_map
 
-        assert walk_length >= context_size
+    def __len__(self):
+        return len(self.trajs)
 
-        self.embedding_dim = embedding_dim
-        self.walk_length = walk_length - 1
-        self.context_size = context_size
-        self.walks_per_node = walks_per_node
-        self.num_negative_samples = num_negative_samples
+    def __getitem__(self, item):
 
-        self.embedding = nn.Embedding(N, embedding_dim, sparse=sparse)
+        traj = list(itemgetter(*self.trajs[item])(self.traj_map))  # map to node ids
+        if len(traj) > self.seq_len:
+            traj = self.cut_traj(traj)
 
-        self.reset_parameters()
+        (
+            traj_input,
+            traj_masked_tokens,
+            traj_masked_pos,
+            traj_masked_weights,
+            traj_label,
+        ) = self.random_word(traj)
 
-    def reset_parameters(self):
-        self.embedding.reset_parameters()
+        input_mask = [1] * len(traj_input)
+        length = [len(traj_input)]
 
-    def forward(self, batch=None):
-        """Returns the embeddings for the nodes in :obj:`batch`."""
-        emb = self.embedding.weight
-        return emb if batch is None else emb.index_select(0, batch)
+        masked_lenth = len(traj_masked_tokens)
+        padding = [0 for _ in range(self.seq_len - len(traj_input))]
+        traj_input.extend(padding)
+        input_mask.extend(padding)
+        traj_label.extend(padding)
 
-    def loader(self, **kwargs):
-        return DataLoader(range(self.adj.shape[0]), collate_fn=self.sample, **kwargs)
+        max_pred = int(self.seq_len * self.mask_ratio)
+        if max_pred > masked_lenth:
+            padding = [0] * (max_pred - masked_lenth)
+            traj_masked_tokens.extend(padding)
+            traj_masked_pos.extend(padding)
+            traj_masked_weights.extend(padding)
+        else:
+            traj_masked_tokens = traj_masked_tokens[:max_pred]
+            traj_masked_pos = traj_masked_pos[:max_pred]
+            traj_masked_weights = traj_masked_weights[:max_pred]
 
-    @staticmethod
-    def traj_walk(adj, walk_length, start, walks_per_node):
-        # create index matrix
-        # matrix = np.tile(np.arange(0, adj.shape[0]), reps=(adj.shape[0], 1))
-        # samples = []
-        # for _ in range(walks_per_node):
-        #     samples.append(
-        #         np.array(
-        #             [
-        #                 np.random.choice(matrix[i], p=adj[i], size=walk_length)
-        #                 for i in range(adj.shape[0])
-        #             ]
-        #         )
-        #     )
-        # walks = np.zeros(shape=(len(start) * walks_per_node, walk_length + 1))
-        # run_idx = 0
-        # for n in range(walks_per_node):
-        #     for i, s in enumerate(start):
-        #         walk = [s]
-        #         curr_idx = s
-        #         for j in range(walk_length):
-        #             walk.append(samples[n][curr_idx, j])
-        #             curr_idx = walk[-1]
-        #         walks[run_idx + i, :] = walk
-        #     run_idx += len(start)
+        output = {
+            "traj_input": traj_input,
+            "traj_label": traj_label,
+            "input_mask": input_mask,
+            "length": length,
+            "masked_pos": traj_masked_pos,
+            "masked_tokens": traj_masked_tokens,
+            "masked_weights": traj_masked_weights,
+        }
 
-        A = sparse.csr_matrix(adj)
-        indptr = A.indptr.astype(np.uint32)
-        indices = A.indices.astype(np.uint32)
-        data = A.data.astype(np.float32)
+        return {key: torch.tensor(value) for key, value in output.items()}
 
-        walks = _random_walks(
-            indptr, indices, data, start, walks_per_node, walk_length + 1
+    def random_word(self, sentence):
+        tokens = sentence
+        output_label = []
+
+        mask_len = int(len(tokens) * self.mask_ratio)
+        start_loc = round(len(tokens) * random.random() * (1 - self.mask_ratio))
+
+        masked_pos = list(range(start_loc, start_loc + mask_len))
+        masked_tokens = tokens[start_loc : start_loc + mask_len]
+        masked_weights = [1] * len(masked_tokens)
+
+        for i, token in enumerate(tokens):
+            if i >= start_loc and i < start_loc + mask_len:
+                tokens[i] = 1
+                output_label.append(token)
+            else:
+                output_label.append(0)
+
+        assert len(tokens) == len(output_label)
+
+        return tokens, masked_tokens, masked_pos, masked_weights, output_label
+
+    def cut_traj(self, traj):
+        start_idx = int((len(traj) - self.seq_len) * random.random())
+        return traj[start_idx : start_idx + self.seq_len]
+
+
+##### Toast Transformer implementation
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, emb_dim, variance_epsilon=1e-12):
+        super(LayerNorm, self).__init__()
+        self.gamma = nn.Parameter(torch.ones(emb_dim))
+        self.beta = nn.Parameter(torch.zeros(emb_dim))
+        self.variance_epsilon = variance_epsilon
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.gamma * x + self.beta
+
+
+class Embeddings(nn.Module):
+    def __init__(self, ntokens, emb_dim, max_len):
+        super(Embeddings, self).__init__()
+        self.tok_embed = nn.Embedding(ntokens, emb_dim)  # token embeddind
+        self.pos_embed = nn.Embedding(max_len, emb_dim)  # position embedding
+        self.norm = LayerNorm(emb_dim)
+        self.drop = nn.Dropout(0.5)
+
+    def forward(self, x):
+        seq_len = x.size(1)
+        pos = torch.arange(seq_len, dtype=torch.long, device=x.device)
+        pos = pos.unsqueeze(0).expand_as(x)  # (S,) -> (B, S)
+
+        e = self.tok_embed(x)  # + self.pos_embed(pos)
+        res = self.drop(self.norm(e))
+        return res
+
+
+def split_last(x, shape):
+    shape = list(shape)
+    assert shape.count(-1) <= 1
+    if -1 in shape:
+        shape[shape.index(-1)] = int(x.size(-1) / -np.prod(shape))
+    return x.view(*x.size()[:-1], *shape)
+
+
+def merge_last(x, n_dims):
+    s = x.size()
+    assert n_dims > 1 and n_dims < len(s)
+    return x.view(*s[:-n_dims], -1)
+
+
+class MultiHeadedSelfAttention(nn.Module):
+    def __init__(self, emb_dim, n_heads):
+        super(MultiHeadedSelfAttention, self).__init__()
+        self.proj_q = nn.Linear(emb_dim, emb_dim)
+        self.proj_k = nn.Linear(emb_dim, emb_dim)
+        self.proj_v = nn.Linear(emb_dim, emb_dim)
+        self.drop = nn.Dropout(0.5)
+        self.scores = None  # for visualization
+        self.n_heads = n_heads
+
+    def forward(self, x, mask):
+        q, k, v = self.proj_q(x), self.proj_k(x), self.proj_v(x)
+        q, k, v = (split_last(x, (self.n_heads, -1)).transpose(1, 2) for x in [q, k, v])
+
+        scores = q @ k.transpose(-2, -1) / np.sqrt(k.size(-1))
+        if mask is not None:
+            mask = mask[:, None, None, :].float()
+            scores -= 10000.0 * (1.0 - mask)
+        scores = self.drop(F.softmax(scores, dim=-1))
+
+        h = (scores @ v).transpose(1, 2).contiguous()
+        # -merge-> (B, S, D)
+        h = merge_last(h, 2)
+        self.scores = scores
+        return h
+
+
+class PositionWiseFeedForward(nn.Module):
+    def __init__(self, emb_dim, hidden_dim):
+        super(PositionWiseFeedForward, self).__init__()
+        self.fc1 = nn.Linear(emb_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, emb_dim)
+
+    def forward(self, x):
+        return self.fc2(gelu(self.fc1(x)))
+
+
+class Block(nn.Module):
+    def __init__(self, emb_dim, hidden_dim, n_heads):
+        super(Block, self).__init__()
+        self.attn = MultiHeadedSelfAttention(emb_dim, n_heads)
+        self.proj = nn.Linear(emb_dim, emb_dim)
+        self.norm1 = LayerNorm(emb_dim)
+        self.pwff = PositionWiseFeedForward(emb_dim, hidden_dim)
+        self.norm2 = LayerNorm(emb_dim)
+        self.drop = nn.Dropout(0.5)
+
+    def forward(self, x, mask):
+        h = self.attn(x, mask)
+        h = self.norm1(x + self.drop(self.proj(h)))
+        h = self.norm2(h + self.drop(self.pwff(h)))
+        return h
+
+
+class Transformer(nn.Module):
+    def __init__(self, emb_dim, nlayers, ntokens, nheads, hidden_dim, max_len):
+        super(Transformer, self).__init__()
+        self.fc = nn.Linear(emb_dim, emb_dim)
+        self.embed = Embeddings(ntokens, emb_dim, max_len)
+        self.blocks = nn.ModuleList(
+            [Block(emb_dim, hidden_dim, nheads) for _ in range(nlayers)]
         )
 
-        return walks.astype(int)
+    def forward(self, x, mask):
+        h = self.fc(self.embed(x))
+        for block in self.blocks:
+            h = block(h, mask)
+        return h
 
-    @staticmethod
-    def generate_traj_static_walks(traj_data, network, walk_length):
-        # create map
-        tmap = {}
-        nodes = list(network.line_graph.nodes)
-        for index, id in zip(network.gdf_edges.index, network.gdf_edges.fid):
-            tmap[id] = nodes.index(index)
 
-        # map traj id sequences to graph node id sequences
-        mapped_traj = []
-        for traj in traj_data:
-            mapped_traj.append(itemgetter(*traj)(tmap))
-
-        # generate matrix with walk length columns
-        traj_matrix = np.zeros(
-            shape=(
-                sum(len(x) for x in mapped_traj)
-                - (len(mapped_traj) * (walk_length))
-                + 1,
-                walk_length,
-            )
+class BertModel(nn.Module):
+    def __init__(self, emb_dim, n_layers, ntokens, nheads, hidden_dim, max_len):
+        super(BertModel, self).__init__()
+        self.transformer = Transformer(
+            emb_dim, n_layers, ntokens, nheads, hidden_dim, max_len
         )
-        run_idx = 0
-        for j, traj in tqdm(enumerate(mapped_traj)):
-            for i in range(len(traj)):
-                if walk_length > len(traj) - i:
-                    break
-                window = i + walk_length
-                traj_matrix[run_idx + i, :] = traj[i:window]
-            run_idx += len(traj) - walk_length
+        self.fc = nn.Linear(emb_dim, emb_dim)
+        self.activ1 = nn.Tanh()
+        self.linear = nn.Linear(emb_dim, emb_dim)
+        self.activ2 = gelu
+        self.norm = LayerNorm(emb_dim)
+        self.classifier = nn.Linear(emb_dim, 2)
 
-        return traj_matrix
+        embed_weight = self.transformer.embed.tok_embed.weight
+        n_vocab, n_dim = embed_weight.size()
+        self.decoder = nn.Linear(n_dim, n_vocab)
 
-    def pos_sample(self, batch):
-        # batch = batch.repeat(self.walks_per_node)
-        # rowptr, col, _ = self.adj.csr()
-        rw = torch.tensor(
-            Traj2Vec.traj_walk(
-                self.adj,
-                self.walk_length,
-                start=batch,
-                walks_per_node=self.walks_per_node,
-            ),
-            dtype=int,
-        )
-        if not isinstance(rw, torch.Tensor):
-            rw = rw[0]
+    def init_token_embed(self, embed):
+        token_vocab = self.transformer.embed.tok_embed.weight.shape[0]
 
-        walks = []
-        num_walks_per_rw = 1 + self.walk_length + 1 - self.context_size
-        for j in range(num_walks_per_rw):
-            walks.append(rw[:, j : j + self.context_size])
-        return torch.cat(walks, dim=0)
+        if embed.shape[0] < token_vocab:
+            self.transformer.embed.tok_embed.weight.data[
+                token_vocab - embed.shape[0] :
+            ] = embed
+            print(self.transformer.embed.tok_embed.weight.shape)
+        else:
+            self.transformer.embed.tok_embed.weight.data = embed
 
-    def neg_sample(self, batch):
-        batch = batch.repeat(self.walks_per_node * self.num_negative_samples)
+    def forward(self, input_ids, input_mask, masked_pos):
+        h = self.transformer(input_ids, input_mask)  # B x S x D
+        # pooled_h = self.activ1(self.fc(h[:, 0]))
 
-        rw = torch.randint(self.adj.shape[0], (batch.size(0), self.walk_length))
-        rw = torch.cat([batch.view(-1, 1), rw], dim=-1)
+        masked_pos = masked_pos[:, :, None].expand(-1, -1, h.size(-1))  # B x S x D
+        h_masked = torch.gather(h, 1, masked_pos)
+        h_masked = self.norm(self.activ2(self.linear(h_masked)))
+        # logits_lm = self.decoder(h_masked) + self.decoder_bias
+        logits_lm = self.decoder(h_masked)
 
-        walks = []
-        num_walks_per_rw = 1 + self.walk_length + 1 - self.context_size
-        for j in range(num_walks_per_rw):
-            walks.append(rw[:, j : j + self.context_size])
-        return torch.cat(walks, dim=0)
-
-    def sample(self, batch):
-        if not isinstance(batch, torch.Tensor):
-            batch = torch.tensor(batch)
-        return self.pos_sample(batch), self.neg_sample(batch)
-
-    def loss(self, pos_rw, neg_rw):
-        r"""Computes the loss given positive and negative random walks."""
-
-        # Positive loss.
-        start, rest = pos_rw[:, 0], pos_rw[:, 1:].contiguous()
-
-        h_start = self.embedding(start).view(pos_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
-            pos_rw.size(0), -1, self.embedding_dim
-        )
-
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        pos_loss = -torch.log(torch.sigmoid(out) + self.EPS).mean()
-
-        # Negative loss.
-        start, rest = neg_rw[:, 0], neg_rw[:, 1:].contiguous()
-
-        h_start = self.embedding(start).view(neg_rw.size(0), 1, self.embedding_dim)
-        h_rest = self.embedding(rest.view(-1)).view(
-            neg_rw.size(0), -1, self.embedding_dim
-        )
-
-        out = (h_start * h_rest).sum(dim=-1).view(-1)
-        neg_loss = -torch.log(1 - torch.sigmoid(out) + self.EPS).mean()
-
-        return pos_loss + neg_loss
+        return logits_lm
