@@ -3,6 +3,7 @@ import os
 import random
 from ast import walk
 from operator import itemgetter
+from statistics import mean
 from turtle import forward
 
 import networkx as nx
@@ -15,15 +16,7 @@ from _walker import random_walks as _random_walks
 from scipy import sparse
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.utils.data import DataLoader, Dataset
-from torch_geometric.nn import GAE, GATConv, GCNConv, InnerProductDecoder, SGConv
-from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.norm import LayerNorm
-from torch_geometric.utils import (
-    add_self_loops,
-    from_networkx,
-    negative_sampling,
-    remove_self_loops,
-)
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_sparse import SparseTensor
 from tqdm import tqdm
@@ -39,7 +32,9 @@ class GTNModel(Model):
         device,
         network,
         traj_data,
+        util_data,
         init_emb,
+        adj,
         batch_size=64,
         emb_dim=256,
         nlayers=2,
@@ -52,50 +47,77 @@ class GTNModel(Model):
         )
         self.model.init_token_embed(init_emb)
         self.model = self.model.to(device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0005)
         self.device = device
         self.traj_data = traj_data["seg_seq"].tolist()
         self.network = network
         self.traj_to_node = generate_trajid_to_nodeid(network)
         self.train_loader = DataLoader(
-            TrajectoryDataset(self.traj_data, self.network, self.traj_to_node),
+            TrajectoryDataset(
+                self.traj_data, self.network, self.traj_to_node, adj, util_data
+            ),
             batch_size=batch_size,
             shuffle=True,
         )
         self.loss_func = nn.CrossEntropyLoss(reduction="none")
+        self.loss_func_2 = nn.CrossEntropyLoss()
+        self.loss_func_3 = nn.MSELoss(reduction="mean")
 
     def train(self, epochs: int = 1000):
-        avg_loss = 0
         for e in range(epochs):
+            avg_loss = 0
+            total_correct = 0
+            total_element = 0
+            self.train_loader.dataset.gen_new_walks(num_walks=100)
             self.model.train()
-            total_loss = 0
             for i, data in enumerate(self.train_loader):
                 data = {key: value.to(self.device) for key, value in data.items()}
-                out = self.model.forward(
-                    data["traj_input"], data["input_mask"], data["masked_pos"]
+                out, next_sent_out, util = self.model.forward(
+                    data["traj_input"],
+                    data["input_mask"],
+                    data["masked_pos"],
+                    data["length"],
                 )
 
-                loss = self.loss_func(out.transpose(1, 2), data["masked_tokens"])
-                loss = (loss * data["masked_weights"].float()).mean()
+                mask_loss = self.loss_func(out.transpose(1, 2), data["masked_tokens"])
+                mask_loss = (mask_loss * data["masked_weights"].float()).mean()
+
+                next_loss = self.loss_func_2(next_sent_out, data["is_traj"].long())
+
+                util_loss = self.loss_func_3(util, data["mean_util"])
+
+                loss = (mask_loss + next_loss + util_loss).float()
 
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
+                correct = (
+                    next_sent_out.argmax(dim=-1).eq(data["is_traj"].long()).sum().item()
+                )
                 avg_loss += loss.item()
+                total_correct += correct
+                total_element += data["is_traj"].nelement()
 
-                if i % 1000 == 0:
-                    print("Epoch: {}, iter {} loss: {}".format(e, i, loss.item()))
+                if i % 500 == 0:
+                    print(
+                        "Epoch: {}, iter {} loss: {}, masked traj loss {:.3f}, judge traj loss {:.3f}, util loss {:.3f}".format(
+                            e,
+                            i,
+                            loss.item(),
+                            mask_loss.item(),
+                            next_loss.item(),
+                            util_loss.item(),
+                        )
+                    )
+            print(
+                f"Epoch {e} avg_loss={avg_loss / len(self.train_loader)}",
+                "total_acc=",
+                total_correct * 100.0 / total_element,
+            )
 
-            # if e > 0 and e % 1 == 0:
-            #     print(
-            #         "Epoch: {}, avg_loss: {}".format(
-            #             e, avg_loss / len(self.train_loader)
-            #         )
-            #     )
-            #     avg_loss = 0
-
-    def load_model():
-        ...
+    def load_model(self, path):
+        self.model.load_state_dict(torch.load(path, map_location=self.device))
 
 
 def gelu(x):
@@ -167,30 +189,86 @@ class PositionalEncoding(nn.Module):
 
 
 class TrajectoryDataset(Dataset):
-    def __init__(self, trajs, network, traj_map, seq_len=150, mask_ratio=0.25):
+    def __init__(
+        self, trajs, network, traj_map, adj, util_data, seq_len=150, mask_ratio=0.25
+    ):
         self.trajs = trajs
         self.network = network
         self.seq_len = seq_len
         self.mask_ratio = mask_ratio
         self.traj_map = traj_map
+        self.adj = adj
+        self.util_data = util_data.loc[
+            list(self.network.line_graph.nodes), "util"
+        ].to_list()
+
+    @staticmethod
+    def traj_walk(adj, start, walks_per_node):
+        A = sparse.csr_matrix(adj)
+        indptr = A.indptr.astype(np.uint32)
+        indices = A.indices.astype(np.uint32)
+        data = A.data.astype(np.float32)
+        walks = []
+        for _ in range(walks_per_node):
+            walk = []
+            for node in start:
+                walk_length = random.randint(5, 100)
+                walk.extend(
+                    _random_walks(indptr, indices, data, [node], 1, walk_length + 1)
+                    .astype(int)
+                    .tolist()
+                )
+            walks.extend(walk)
+
+        return walks
+
+    def gen_new_walks(self, num_walks):
+        self.walks = TrajectoryDataset.traj_walk(
+            self.adj,
+            start=np.arange(len(self.network.line_graph.nodes)),
+            walks_per_node=num_walks,
+        )
+        random.shuffle(self.walks)
+
+    def get_utilization(self, node_seq):
+        mean_util = mean(itemgetter(*node_seq)(self.util_data))
+
+        return mean_util
 
     def __len__(self):
         return len(self.trajs)
 
     def __getitem__(self, item):
 
-        traj = list(itemgetter(*self.trajs[item])(self.traj_map))  # map to node ids
-        if len(traj) > self.seq_len:
-            traj = self.cut_traj(traj)
+        if random.random() > 0.5:
+            walk = self.walks[item]
+            if len(walk) > self.seq_len:
+                traj = self.cut_traj(walk)
+            mean_util = self.get_utilization(walk)
+            is_traj = False
+            (
+                traj_input,
+                traj_masked_tokens,
+                traj_masked_pos,
+                traj_masked_weights,
+                traj_label,
+            ) = self.process_walk(walk)
+        else:
+            traj = list(itemgetter(*self.trajs[item])(self.traj_map))  # map to node ids
+            if len(traj) > self.seq_len:
+                traj = self.cut_traj(traj)
+            mean_util = self.get_utilization(traj)
+            is_traj = True
+            (
+                traj_input,
+                traj_masked_tokens,
+                traj_masked_pos,
+                traj_masked_weights,
+                traj_label,
+            ) = self.random_word(traj)
 
-        (
-            traj_input,
-            traj_masked_tokens,
-            traj_masked_pos,
-            traj_masked_weights,
-            traj_label,
-        ) = self.random_word(traj)
-
+        traj_input = traj_input
+        traj_label = traj_label
         input_mask = [1] * len(traj_input)
         length = [len(traj_input)]
 
@@ -219,6 +297,8 @@ class TrajectoryDataset(Dataset):
             "masked_pos": traj_masked_pos,
             "masked_tokens": traj_masked_tokens,
             "masked_weights": traj_masked_weights,
+            "is_traj": is_traj,
+            "mean_util": mean_util,
         }
 
         return {key: torch.tensor(value) for key, value in output.items()}
@@ -233,6 +313,28 @@ class TrajectoryDataset(Dataset):
         masked_pos = list(range(start_loc, start_loc + mask_len))
         masked_tokens = tokens[start_loc : start_loc + mask_len]
         masked_weights = [1] * len(masked_tokens)
+
+        for i, token in enumerate(tokens):
+            if i >= start_loc and i < start_loc + mask_len:
+                tokens[i] = 1
+                output_label.append(token)
+            else:
+                output_label.append(0)
+
+        assert len(tokens) == len(output_label)
+
+        return tokens, masked_tokens, masked_pos, masked_weights, output_label
+
+    def process_walk(self, walk):
+        tokens = walk
+        output_label = []
+
+        mask_len = int(len(tokens) * self.mask_ratio)
+        start_loc = round(len(tokens) * random.random() * (1 - self.mask_ratio))
+
+        masked_pos = list(range(start_loc, start_loc + mask_len))
+        masked_tokens = tokens[start_loc : start_loc + mask_len]
+        masked_weights = [0] * len(masked_tokens)
 
         for i, token in enumerate(tokens):
             if i >= start_loc and i < start_loc + mask_len:
@@ -376,11 +478,13 @@ class BertModel(nn.Module):
             emb_dim, n_layers, ntokens, nheads, hidden_dim, max_len
         )
         self.fc = nn.Linear(emb_dim, emb_dim)
+        self.fc2 = nn.Linear(emb_dim, emb_dim)
         self.activ1 = nn.Tanh()
         self.linear = nn.Linear(emb_dim, emb_dim)
         self.activ2 = gelu
         self.norm = LayerNorm(emb_dim)
         self.classifier = nn.Linear(emb_dim, 2)
+        self.regressor = nn.Linear(emb_dim, 1)
 
         embed_weight = self.transformer.embed.tok_embed.weight
         n_vocab, n_dim = embed_weight.size()
@@ -397,14 +501,22 @@ class BertModel(nn.Module):
         else:
             self.transformer.embed.tok_embed.weight.data = embed
 
-    def forward(self, input_ids, input_mask, masked_pos):
+    def forward(self, input_ids, input_mask, masked_pos, traj_len):
         h = self.transformer(input_ids, input_mask)  # B x S x D
         # pooled_h = self.activ1(self.fc(h[:, 0]))
+
+        traj_h = (
+            torch.sum(h * input_mask.unsqueeze(-1).float(), dim=1) / traj_len.float()
+        )
+        pooled_h = self.activ1(self.fc(traj_h))
+        pooled_h_2 = self.activ1(self.fc2(traj_h))
 
         masked_pos = masked_pos[:, :, None].expand(-1, -1, h.size(-1))  # B x S x D
         h_masked = torch.gather(h, 1, masked_pos)
         h_masked = self.norm(self.activ2(self.linear(h_masked)))
         # logits_lm = self.decoder(h_masked) + self.decoder_bias
         logits_lm = self.decoder(h_masked)
+        logits_clsf = self.classifier(pooled_h)
+        logits_reg = self.regressor(pooled_h_2)
 
-        return logits_lm
+        return logits_lm, logits_clsf, logits_reg

@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def generate_trajid_to_nodeid(network):
     map = {}
     nodes = list(network.line_graph.nodes)

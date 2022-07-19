@@ -58,20 +58,20 @@ def evaluate_k(args, data, network, trajectory):
 
         eva = Evaluation()
         if "roadclf" in tasks:
-            eva.register_task("roadclf", init_roadclf(args, network))
+            eva.register_task("roadclf", init_roadclf(args, network, seed=seed))
         if "meanspeed" in tasks:
-            eva.register_task("meanspeed", init_meanspeed(args, network))
+            eva.register_task("meanspeed", init_meanspeed(args, network, seed=seed))
         if "traveltime" in tasks:
             eva.register_task(
-                "traveltime", init_traveltime(args, traj_train, network, device)
+                "traveltime", init_traveltime(args, traj_train, network, device, seed=seed)
             )
         if "nextlocation" in tasks:
             eva.register_task(
-                "nextlocation", init_traveltime(args, traj_train, network, device)
+                "nextlocation", init_nextlocation(args, traj_train, network, device, seed=seed)
             )
         if "destination" in tasks:
             eva.register_task(
-                "destination", init_traveltime(args, traj_train, network, device)
+                "destination", init_destination(args, traj_train, network, device, seed=seed)
             )
 
         for k in ks:
