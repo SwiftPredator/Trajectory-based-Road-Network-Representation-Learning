@@ -5,9 +5,13 @@ python -u evaluate_models.py -m "pca,gaegcn,deepwalk,hrnr,rfn" -t "meanspeed" -p
 
 
 # K evaluation commands
-
 nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 0 -r 10 -ss 1 -t roadclf -dl highway_enc
 nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10 -ss 1 -t meanspeed -dl avg_speed
 nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t traveltime
 nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t nextlocation
 nohup python -u gtc_k_evaluation.py -s 1 -p ./results -d 3 -r 10000000 -ss 100000 -t destination
+
+# Ablation commands
+nohup python -u gtn_ablation_eval.py -s 0 -p ./results -r 100 -d 0 -t meanspeed
+nohup python -u gtn_ablation_eval.py -s 0 -p ./results -r 100000000 -d 0 -t nextlocation
+nohup python -u gtn_ablation_eval.py -s 0 -p ./results -r 100000000 -d 0 -t destination

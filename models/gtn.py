@@ -25,16 +25,39 @@ from .model import Model
 from .utils import generate_trajid_to_nodeid
 
 
+class ConcateAdapterModel(Model):
+    def __init__(self, data, device, aggregator: str, models: list, network=None):
+        self.models = models
+        self.aggregator = aggregator
+
+    def train(self):
+        ...
+
+    def load_emb(self):
+        embs = [m.load_emb() for m in self.models]
+        if self.aggregator == "add":
+            emb = embs[0]
+            for e in embs[1:]:
+                emb = emb + e
+
+            return emb
+        elif self.aggregator == "concate":
+            return np.concatenate(embs, axis=1)
+
+    def load_model(self, path: str):
+        ...
+
+
 class GTNModel(Model):
     def __init__(
         self,
         data,
         device,
         network,
-        traj_data,
-        util_data,
-        init_emb,
-        adj,
+        traj_data=None,
+        util_data=None,
+        init_emb=None,
+        adj=None,
         batch_size=64,
         emb_dim=256,
         nlayers=2,
@@ -45,20 +68,22 @@ class GTNModel(Model):
         self.model = BertModel(
             emb_dim, nlayers, len(network.line_graph.nodes), nheads, hidden_dim, max_len
         )
-        self.model.init_token_embed(init_emb)
+        if init_emb is not None:
+            self.model.init_token_embed(init_emb)
         self.model = self.model.to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0005)
         self.device = device
-        self.traj_data = traj_data["seg_seq"].tolist()
         self.network = network
-        self.traj_to_node = generate_trajid_to_nodeid(network)
-        self.train_loader = DataLoader(
-            TrajectoryDataset(
-                self.traj_data, self.network, self.traj_to_node, adj, util_data
-            ),
-            batch_size=batch_size,
-            shuffle=True,
-        )
+        if util_data is not None and traj_data is not None:
+            self.traj_data = traj_data["seg_seq"].tolist()
+            self.traj_to_node = generate_trajid_to_nodeid(network)
+            self.train_loader = DataLoader(
+                TrajectoryDataset(
+                    self.traj_data, self.network, self.traj_to_node, adj, util_data
+                ),
+                batch_size=batch_size,
+                shuffle=True,
+            )
         self.loss_func = nn.CrossEntropyLoss(reduction="none")
         self.loss_func_2 = nn.CrossEntropyLoss()
         self.loss_func_3 = nn.MSELoss(reduction="mean")
@@ -118,6 +143,9 @@ class GTNModel(Model):
 
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path, map_location=self.device))
+
+    def load_emb(self):
+        return self.model.transformer.embed.tok_embed.weight.data.cpu().numpy()
 
 
 def gelu(x):

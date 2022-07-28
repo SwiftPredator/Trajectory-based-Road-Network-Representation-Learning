@@ -37,7 +37,7 @@ class GTCModel(Model):
         data,
         device,
         network,
-        traj_data,
+        traj_data=None,
         emb_dim: str = 128,
         adj=None,
         k: int = 1,
@@ -170,6 +170,7 @@ class GTCModel(Model):
             )
             .detach()
             .cpu()
+            .numpy()
         )
 
 

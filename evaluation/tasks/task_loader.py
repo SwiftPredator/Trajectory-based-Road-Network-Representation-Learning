@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn import linear_model, metrics
+from sklearn.neural_network import MLPRegressor
 
 from . import (
     DestinationPrediciton,
@@ -79,7 +80,8 @@ def init_meanspeed(args, network, seed):
     map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
     tf["idx"] = tf.index.map(map_id)
     tf.sort_values(by="idx", axis=0, inplace=True)
-    decoder = linear_model.LinearRegression(fit_intercept=True)
+    # decoder = linear_model.LinearRegression(fit_intercept=True)
+    decoder = MLPRegressor(hidden_layer_sizes=(256,), random_state=seed, max_iter=30)
     y = tf["avg_speed"]
     y.fillna(0, inplace=True)
     y = y.round(2)

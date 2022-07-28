@@ -7,6 +7,7 @@ from datetime import datetime
 
 import pandas as pd
 import torch
+from sklearn.model_selection import train_test_split
 
 module_path = os.path.abspath(os.path.join(".."))
 if module_path not in sys.path:
@@ -17,6 +18,7 @@ import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
 from models import (
+    ConcateAdapterModel,
     GAEModel,
     GATEncoder,
     GCNEncoder,
@@ -35,6 +37,51 @@ from evaluation import Evaluation
 from tasks.task_loader import *
 
 model_map = {
+    # "add-gtn-gtc": (
+    #     ConcateAdapterModel,
+    #     {"models": ["gtn", "gtc"], "aggregator": "add"},
+    #     "",
+    # ),
+    # "add-gtn-traj2vec": (
+    #     ConcateAdapterModel,
+    #     {"models": ["gtn", "traj2vec"], "aggregator": "add"},
+    #     "",
+    # ),
+    # "add-gtn-gtc-traj2vec": (
+    #     ConcateAdapterModel,
+    #     {"models": ["gtn", "gtc", "traj2vec"], "aggregator": "add"},
+    #     "",
+    # ),
+    "add-traj2vec-gtc": (
+        ConcateAdapterModel,
+        {"models": ["gtc", "traj2vec"], "aggregator": "add"},
+        "",
+    ),
+    "con-gtn-gtc": (
+        ConcateAdapterModel,
+        {"models": ["gtn", "gtc"], "aggregator": "concate"},
+        "",
+    ),
+    "con-gtn-traj2vec": (
+        ConcateAdapterModel,
+        {"models": ["gtn", "traj2vec"], "aggregator": "concate"},
+        "",
+    ),
+    "con-gtn-gtc-traj2vec": (
+        ConcateAdapterModel,
+        {"models": ["gtn", "gtc", "traj2vec"], "aggregator": "concate"},
+        "",
+    ),
+    "con-traj2vec-gtc": (
+        ConcateAdapterModel,
+        {"models": ["gtc", "traj2vec"], "aggregator": "concate"},
+        "",
+    ),
+    "con-deepwalk-gaegcn": (
+        ConcateAdapterModel,
+        {"models": ["gaegcn", "deepwalk"], "aggregator": "concate"},
+        "",
+    ),
     "gtn": (GTNModel, {}, "../models/model_states/gtn/"),
     "gtc": (GTCModel, {}, "../models/model_states/gtc/"),
     "traj2vec": (Traj2VecModel, {}, "../models/model_states/traj2vec"),
@@ -135,9 +182,9 @@ def get_model_path_for_task(base_path, tasks, model_name):
     if model_name in ["node2vec", "deepwalk", "traj2vec", "toast", "pca"]:
         return os.path.join(base_path, "model_base.pt")
 
-    if "meanspeed" in tasks and model_name in ["gtc", "gtn"]:
-        assert len(tasks) == 1
-        return os.path.join(base_path, "model_nospeed.pt")
+    # if "meanspeed" in tasks and model_name in ["gtc", "gtn"]:
+    #     assert len(tasks) == 1
+    #     return os.path.join(base_path, "model_nospeed.pt")
     if "roadclf" in tasks:
         assert len(tasks) == 1
         return (
@@ -205,8 +252,25 @@ def evaluate_model(args, data, network, trajectory, seed):
     if "route" in tasks:
         eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
+    adj = np.loadtxt(
+        "../models/training/gtn_precalc_adj/traj_adj_k_3.gz"
+    )  # change to desired path
     for m in models:
         model, margs, model_path = model_map[m]
+        if "con" in m or "add" in m:  # case where its an aggregtaed embedding
+            agg_models = []
+            for agg_model_name in margs["models"]:
+                agg_model, agg_margs, agg_model_path = model_map[agg_model_name]
+                if agg_model_name in ["gtc", "traj2vec", "gtn"]:
+                    agg_margs["adj"] = adj
+                agg_model = agg_model(data, device=device, **agg_margs)
+                agg_model.load_model(
+                    path=get_model_path_for_task(agg_model_path, tasks, agg_model_name)
+                )
+                agg_models.append(agg_model)
+
+            margs["models"] = agg_models
+
         if m in ["toast", "srn2vec", "rfn", "hrnr"]:
             margs["network"] = network
         if m in ["gaegcn_no_features", "gaegat_no_features"]:
@@ -215,16 +279,14 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m in ["gtn", "gtc"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
-            margs["adj"] = np.loadtxt(
-                "../models/training/gtn_precalc_adj/traj_adj_k_1.gz"
-            )  # change to desired path
+            margs["adj"] = adj
         if m == "traj2vec":
             margs["network"] = network
             margs["adj"] = np.loadtxt(
                 "../models/training/gtn_precalc_adj/traj_adj_k_1.gz"
             )
 
-        if m in ["rfn", "hrnr"] and args["drop_label"] == "highway_enc":
+        if m in ["rfn", "hrnr", "srn2vec"] and args["drop_label"] == "highway_enc":
             margs["remove_highway_label"] = True
 
         model = model(data, device=device, **margs)
@@ -295,10 +357,13 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     network, trajectory, data = generate_dataset(args)
-    seeds = [s for s in args["seeds"].split(",")]
+    seeds = [int(s) for s in args["seeds"].split(",")]
     results = []
     for seed in seeds:
-        res = evaluate_model(args, data, network, trajectory, int(seed))
+        _, test = train_test_split(
+            trajectory, test_size=0.3, random_state=69
+        )  # same seed as for training gtn (needs always same test set)
+        res = evaluate_model(args, data, network, test, int(seed))
 
         if len(results) == 0:
             for name, res in res:

@@ -9,3 +9,11 @@ class Model(ABC):
     @abstractmethod
     def train(self):
         ...
+
+    @abstractmethod
+    def load_model(self):
+        ...
+
+    @abstractmethod
+    def load_emb(self):
+        ...

@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 from torch import embedding
+from tqdm import tqdm
 
 from tasks import Task
 
@@ -17,9 +18,9 @@ class Evaluation:
     def run(self, save_dir=None) -> List[Tuple[str, pd.DataFrame]]:
         res = []
         embs = [(n, m.load_emb()) for n, m in self.models.items()]
-        for name, task in self.tasks.items():
+        for name, task in tqdm(self.tasks.items(), desc="Current task"):
             df = pd.DataFrame(columns=list(task.metrics.keys()))
-            for n, emb in embs:
+            for n, emb in tqdm(embs, leave=False, desc="Embedding Evaluation"):
                 row = pd.Series(task.evaluate(emb=emb))
                 row.name = n
                 df = df.append(row)
