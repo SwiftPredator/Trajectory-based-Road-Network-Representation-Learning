@@ -40,7 +40,7 @@ class NextLocationPrediciton(Task):
 
         # make a train test split on trajectorie data
         train, test = model_selection.train_test_split(
-            self.data, test_size=0.2, random_state=self.seed
+            self.data, test_size=0.3, random_state=self.seed
         )
         self.train_loader = DataLoader(
             NL_Dataset(train, network),
@@ -233,9 +233,9 @@ class NL_LSTM(nn.Module):
             batch_first=True,  # dropout=0.5
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units * 2),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
-            nn.Linear(hidden_units * 2, hidden_units),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units, out_dim),
         )
@@ -245,7 +245,7 @@ class NL_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.CrossEntropyLoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.01)
 
         self.encoder.to(device)
         self.decoder.to(device)
@@ -286,7 +286,7 @@ class NL_LSTM(nn.Module):
         self.train()
         for e in range(epochs):
             total_loss = 0
-            for X, y, neigh_masks, lengths, mask, map in loader:
+            for X, y, neigh_masks, lengths, mask, map in tqdm(loader, leave=False):
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
                 y = y.to(self.device)

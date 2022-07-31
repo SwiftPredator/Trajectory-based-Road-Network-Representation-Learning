@@ -197,9 +197,9 @@ class DP_LSTM(nn.Module):
             batch_first=True,  # dropout=0.5
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units * 2),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
-            nn.Linear(hidden_units * 2, hidden_units),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units, out_dim),
         )
@@ -209,7 +209,7 @@ class DP_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.CrossEntropyLoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.01)
 
         self.encoder.to(device)
         self.decoder.to(device)

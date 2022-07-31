@@ -197,7 +197,7 @@ class RoadNetwork:
                 "osmid",
                 "id",
                 "geometry",
-                "highway",
+                "highway_enc",
                 "idx",
                 "name",
                 "ref",
@@ -221,21 +221,14 @@ class RoadNetwork:
         df["lanes"] = df["lanes"].str.extract(r"(\w+)")
         df["maxspeed"] = df["maxspeed"].str.extract(r"(\w+)")
 
-        imputer = KNNImputer(n_neighbors=1)
-        imputed = imputer.fit_transform(df)
-        df["lanes"] = imputed[:, 2].astype(int)
-        df["maxspeed"] = imputed[:, 3].astype(int)
-
-        df.drop(drop_labels, axis=1, inplace=True)  # drop label?
-
         # normalize continiuos features
         df["length"] = (df["length"] - df["length"].min()) / (
             df["length"].max() - df["length"].min()
         )  # min max normalization
 
         cats = ["lanes", "maxspeed"]
-        if "highway_enc" not in drop_labels:
-            cats.append("highway_enc")
+        if "highway" not in drop_labels:
+            cats.append("highway")
 
         if one_hot_enc:
             # Categorical features one hot encoding
@@ -245,11 +238,21 @@ class RoadNetwork:
                 drop_first=True,
             )
         else:
+            labels = {}
             for c in cats:
-                df[c] = pd.factorize(df[c])[0]
+                code, label = pd.factorize(df[c])
+                df[c] = code
+                labels[c] = label
+
+        imputer = KNNImputer(n_neighbors=1)
+        imputed = imputer.fit_transform(df)
+        df["lanes"] = imputed[:, 2].astype(int)
+        df["maxspeed"] = imputed[:, 3].astype(int)
+
+        df.drop(drop_labels, axis=1, inplace=True)  # drop label?
 
         if return_df:
-            return df
+            return df, labels
 
         features = torch.DoubleTensor(np.array(df.values, dtype=np.double))
         # print(features)

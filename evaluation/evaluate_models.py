@@ -356,6 +356,14 @@ if __name__ == "__main__":
         type=str,
     )
 
+    parser.add_argument(
+        "-tp",
+        "--test_prop",
+        help="Procentual test proportion",
+        default=0.3,
+        type=float,
+    )
+
     args = vars(parser.parse_args())
 
     network, trajectory, data = generate_dataset(args)
@@ -363,7 +371,7 @@ if __name__ == "__main__":
     results = []
     for seed in seeds:
         _, test = train_test_split(
-            trajectory, test_size=0.3, random_state=69
+            trajectory, test_size=args["test_prop"], random_state=69
         )  # same seed as for training gtn (needs always same test set)
         res = evaluate_model(args, data, network, test, int(seed))
 

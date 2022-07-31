@@ -38,7 +38,7 @@ class TravelTimeEstimation(Task):
         self.seed = seed
         # make a train test split on trajectorie data
         train, test = model_selection.train_test_split(
-            self.data, test_size=0.2, random_state=self.seed
+            self.data, test_size=0.3, random_state=self.seed
         )
         self.train_loader = DataLoader(
             TTE_Dataset(train, network),
@@ -147,12 +147,12 @@ class TTE_LSTM(nn.Module):
     ):
         super(TTE_LSTM, self).__init__()
         self.encoder = nn.LSTM(
-            emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
+            emb_dim, hidden_units, num_layers=layers, batch_first=True
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units * 2),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
-            nn.Linear(hidden_units * 2, hidden_units),
+            nn.Linear(hidden_units, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units, 1),
         )
@@ -161,7 +161,7 @@ class TTE_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.MSELoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.0001)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
 
         self.encoder.to(device)
         self.decoder.to(device)
