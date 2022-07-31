@@ -253,7 +253,7 @@ def evaluate_model(args, data, network, trajectory, seed):
         eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
     adj = np.loadtxt(
-        "../models/training/gtn_precalc_adj/traj_adj_k_3.gz"
+        "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
     )  # change to desired path
     for m in models:
         model, margs, model_path = model_map[m]
@@ -263,6 +263,7 @@ def evaluate_model(args, data, network, trajectory, seed):
                 agg_model, agg_margs, agg_model_path = model_map[agg_model_name]
                 if agg_model_name in ["gtc", "traj2vec", "gtn"]:
                     agg_margs["adj"] = adj
+                    agg_margs["network"] = network
                 agg_model = agg_model(data, device=device, **agg_margs)
                 agg_model.load_model(
                     path=get_model_path_for_task(agg_model_path, tasks, agg_model_name)
@@ -291,6 +292,7 @@ def evaluate_model(args, data, network, trajectory, seed):
 
         model = model(data, device=device, **margs)
         model.load_model(path=get_model_path_for_task(model_path, tasks, m))
+        print(model.load_emb())
         eva.register_model(m, model)
 
     res = eva.run()

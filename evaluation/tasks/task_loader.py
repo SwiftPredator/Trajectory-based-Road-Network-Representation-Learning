@@ -81,7 +81,7 @@ def init_meanspeed(args, network, seed):
     tf["idx"] = tf.index.map(map_id)
     tf.sort_values(by="idx", axis=0, inplace=True)
     # decoder = linear_model.LinearRegression(fit_intercept=True)
-    decoder = MLPRegressor(hidden_layer_sizes=(256,), random_state=seed, max_iter=30)
+    decoder = MLPRegressor(hidden_layer_sizes=(1024,), random_state=seed, max_iter=30)
     y = tf["avg_speed"]
     y.fillna(0, inplace=True)
     y = y.round(2)

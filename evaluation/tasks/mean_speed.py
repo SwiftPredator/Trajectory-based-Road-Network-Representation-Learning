@@ -17,11 +17,11 @@ class MeanSpeedRegTask(Task):
         self.seed = seed
 
     def evaluate(self, emb: np.ndarray) -> Dict[str, any]:
-        decoder = clone(self.decoder)
 
         # calculate metrics
         res = {}
         for name, (metric, args, proba) in self.metrics.items():
+            decoder = clone(self.decoder)
             scorer = make_scorer(metric, **args, needs_proba=proba)
             res[name] = np.mean(
                 cross_val_score(

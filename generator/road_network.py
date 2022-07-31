@@ -156,6 +156,8 @@ class RoadNetwork:
         traj_data: gpd.GeoDataFrame = None,
         drop_labels: List = [],
         include_coords: bool = False,
+        one_hot_enc: bool = True,
+        return_df: bool = False,
     ):
         """
         Generates road segment feature dataset in the pyg Data format.
@@ -235,13 +237,19 @@ class RoadNetwork:
         if "highway_enc" not in drop_labels:
             cats.append("highway_enc")
 
-        # Categorical features one hot encoding
-        df = pd.get_dummies(
-            df,
-            columns=cats,
-            drop_first=True,
-        )
-        # print(df.head(), df.shape)
+        if one_hot_enc:
+            # Categorical features one hot encoding
+            df = pd.get_dummies(
+                df,
+                columns=cats,
+                drop_first=True,
+            )
+        else:
+            for c in cats:
+                df[c] = pd.factorize(df[c])[0]
+
+        if return_df:
+            return df
 
         features = torch.DoubleTensor(np.array(df.values, dtype=np.double))
         # print(features)

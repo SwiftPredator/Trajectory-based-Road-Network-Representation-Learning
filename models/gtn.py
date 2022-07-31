@@ -39,8 +39,8 @@ class ConcateAdapterModel(Model):
             emb = embs[0]
             for e in embs[1:]:
                 emb = emb + e
-
             return emb
+
         elif self.aggregator == "concate":
             return np.concatenate(embs, axis=1)
 

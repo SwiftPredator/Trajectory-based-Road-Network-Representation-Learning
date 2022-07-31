@@ -177,7 +177,7 @@ class GTCModel(Model):
 class GTNSubConv(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, norm=False):
         super().__init__()
-        self.conv = GCNConv(in_dim, out_dim, cached=True)
+        self.conv = GCNConv(in_dim, out_dim)
         self.norm_layer = LayerNorm(out_dim)
         self.norm = norm
 
