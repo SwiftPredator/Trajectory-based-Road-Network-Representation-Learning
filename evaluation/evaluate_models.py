@@ -292,7 +292,6 @@ def evaluate_model(args, data, network, trajectory, seed):
 
         model = model(data, device=device, **margs)
         model.load_model(path=get_model_path_for_task(model_path, tasks, m))
-        print(model.load_emb())
         eva.register_model(m, model)
 
     res = eva.run()

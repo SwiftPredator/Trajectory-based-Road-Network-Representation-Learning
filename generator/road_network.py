@@ -192,14 +192,15 @@ class RoadNetwork:
             df["x"] = df.geometry.centroid.x / 100  # normalize to -2/2
             df["y"] = df.geometry.centroid.y / 100  # normalize to -1/1
 
+        highway = df["highway"].reset_index(drop=True)
         df.drop(
             [
                 "osmid",
                 "id",
                 "geometry",
-                "highway_enc",
                 "idx",
                 "name",
+                "highway",
                 "ref",
                 "access",
                 "area",
@@ -226,10 +227,18 @@ class RoadNetwork:
             df["length"].max() - df["length"].min()
         )  # min max normalization
 
-        cats = ["lanes", "maxspeed"]
-        if "highway" not in drop_labels:
-            cats.append("highway")
+        imputer = KNNImputer(n_neighbors=1)
+        imputed = imputer.fit_transform(df)
+        df["lanes"] = imputed[:, 2].astype(int)
+        df["maxspeed"] = imputed[:, 3].astype(int)
 
+        df.drop(drop_labels, axis=1, inplace=True)  # drop label?
+
+        cats = ["lanes", "maxspeed"]
+        if "highway_enc" not in drop_labels:
+            cats.append("highway_enc")
+
+        # revert changes and build it that without onehot it returns the right label
         if one_hot_enc:
             # Categorical features one hot encoding
             df = pd.get_dummies(
@@ -238,18 +247,13 @@ class RoadNetwork:
                 drop_first=True,
             )
         else:
+            df["highway"] = highway
+            cats.append("highway")
             labels = {}
             for c in cats:
                 code, label = pd.factorize(df[c])
                 df[c] = code
                 labels[c] = label
-
-        imputer = KNNImputer(n_neighbors=1)
-        imputed = imputer.fit_transform(df)
-        df["lanes"] = imputed[:, 2].astype(int)
-        df["maxspeed"] = imputed[:, 3].astype(int)
-
-        df.drop(drop_labels, axis=1, inplace=True)  # drop label?
 
         if return_df:
             return df, labels

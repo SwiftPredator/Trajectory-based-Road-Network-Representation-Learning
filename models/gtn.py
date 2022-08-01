@@ -109,7 +109,7 @@ class GTNModel(Model):
 
                 next_loss = self.loss_func_2(next_sent_out, data["is_traj"].long())
 
-                util_loss = self.loss_func_3(util, data["mean_util"])
+                util_loss = self.loss_func_3(util / data["max_util"], data["mean_util"] / data["max_util"])
 
                 loss = (mask_loss + next_loss + util_loss).float()
 
@@ -327,6 +327,7 @@ class TrajectoryDataset(Dataset):
             "masked_weights": traj_masked_weights,
             "is_traj": is_traj,
             "mean_util": mean_util,
+            "max_util": sum(self.util_data)
         }
 
         return {key: torch.tensor(value) for key, value in output.items()}
