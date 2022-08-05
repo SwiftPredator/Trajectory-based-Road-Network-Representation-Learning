@@ -6,3 +6,5 @@ models/__pycache__/*
 *.csv
 *.out
 models/hrnr_original/*
+models/training/gtn_precalc_adj/*
+models/training/hrnr_data_noroad/*

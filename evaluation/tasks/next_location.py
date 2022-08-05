@@ -39,22 +39,22 @@ class NextLocationPrediciton(Task):
         self.seed = seed
 
         # make a train test split on trajectorie data
-        train, test = model_selection.train_test_split(
+        self.train, self.test = model_selection.train_test_split(
             self.data, test_size=0.3, random_state=self.seed
-        )
-        self.train_loader = DataLoader(
-            NL_Dataset(train, network),
-            collate_fn=NL_Dataset.collate_fn_padd,
-            batch_size=batch_size,
-            shuffle=True,
-        )
-        self.eval_loader = DataLoader(
-            NL_Dataset(test, network),
-            collate_fn=NL_Dataset.collate_fn_padd,
-            batch_size=batch_size,
         )
 
     def evaluate(self, emb: np.ndarray, coord_sys: str = "EPSG:3763"):  # porto coord
+        train_loader = DataLoader(
+            NL_Dataset(self.train, self.network),
+            collate_fn=NL_Dataset.collate_fn_padd,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+        eval_loader = DataLoader(
+            NL_Dataset(self.test, self.network),
+            collate_fn=NL_Dataset.collate_fn_padd,
+            batch_size=self.batch_size,
+        )
         model = NL_LSTM(
             out_dim=len(
                 self.network.line_graph.nodes
@@ -73,10 +73,10 @@ class NextLocationPrediciton(Task):
         )
 
         # train on x trajectories
-        model.train_model(loader=self.train_loader, emb=emb, epochs=self.epochs)
+        model.train_model(loader=train_loader, emb=emb, epochs=self.epochs)
 
         # eval on test set using distance loss
-        yh, y = model.predict(loader=self.eval_loader, emb=emb)
+        yh, y = model.predict(loader=eval_loader, emb=emb)
         res = {}
         for name, (metric, args) in self.metrics.items():
             res[name] = metric(y, yh, **args)
@@ -220,8 +220,8 @@ class NL_LSTM(nn.Module):
         self,
         out_dim: int,
         device,
-        emb_dim: int = 128,
-        hidden_units: int = 256,
+        emb_dim: int = 256,
+        hidden_units: int = 512,
         layers: int = 1,
         batch_size: int = 128,
     ):

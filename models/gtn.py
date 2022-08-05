@@ -66,12 +66,17 @@ class GTNModel(Model):
         max_len=150,
     ):
         self.model = BertModel(
-            emb_dim, nlayers, len(network.line_graph.nodes), nheads, hidden_dim, max_len
+            emb_dim,
+            nlayers,
+            len(network.line_graph.nodes) + 2,
+            nheads,
+            hidden_dim,
+            max_len,
         )
         if init_emb is not None:
             self.model.init_token_embed(init_emb)
         self.model = self.model.to(device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0005)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0005)  # 0.0005
         self.device = device
         self.network = network
         if util_data is not None and traj_data is not None:
@@ -86,7 +91,7 @@ class GTNModel(Model):
             )
         self.loss_func = nn.CrossEntropyLoss(reduction="none")
         self.loss_func_2 = nn.CrossEntropyLoss()
-        self.loss_func_3 = nn.MSELoss(reduction="mean")
+        # self.loss_func_3 = nn.MSELoss(reduction="mean")
 
     def train(self, epochs: int = 1000):
         for e in range(epochs):
@@ -97,7 +102,7 @@ class GTNModel(Model):
             self.model.train()
             for i, data in enumerate(self.train_loader):
                 data = {key: value.to(self.device) for key, value in data.items()}
-                out, next_sent_out, util = self.model.forward(
+                out, next_sent_out = self.model.forward(
                     data["traj_input"],
                     data["input_mask"],
                     data["masked_pos"],
@@ -109,9 +114,11 @@ class GTNModel(Model):
 
                 next_loss = self.loss_func_2(next_sent_out, data["is_traj"].long())
 
-                util_loss = self.loss_func_3(util / data["max_util"], data["mean_util"] / data["max_util"])
+                # util_loss = self.loss_func_3(
+                #     util / data["max_util"], data["mean_util"] / data["max_util"]
+                # )
 
-                loss = (mask_loss + next_loss + util_loss).float()
+                loss = (mask_loss + next_loss).float()
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -124,15 +131,15 @@ class GTNModel(Model):
                 total_correct += correct
                 total_element += data["is_traj"].nelement()
 
-                if i % 500 == 0:
+                if i % 10 == 0:
                     print(
-                        "Epoch: {}, iter {} loss: {}, masked traj loss {:.3f}, judge traj loss {:.3f}, util loss {:.3f}".format(
+                        "Epoch: {}, iter {} loss: {}, masked traj loss {:.3f}, judge traj loss {:.3f}".format(
                             e,
                             i,
                             loss.item(),
                             mask_loss.item(),
                             next_loss.item(),
-                            util_loss.item(),
+                            # util_loss.item(),
                         )
                     )
             print(
@@ -240,7 +247,7 @@ class TrajectoryDataset(Dataset):
         for _ in range(walks_per_node):
             walk = []
             for node in start:
-                walk_length = random.randint(5, 100)
+                walk_length = random.randint(10, 100)
                 walk.extend(
                     _random_walks(indptr, indices, data, [node], 1, walk_length + 1)
                     .astype(int)
@@ -272,7 +279,9 @@ class TrajectoryDataset(Dataset):
             walk = self.walks[item]
             if len(walk) > self.seq_len:
                 traj = self.cut_traj(walk)
-            mean_util = self.get_utilization(walk)
+            # shift by node ids by 2 to match pad and mask token
+            walk = [w + 2 for w in walk]
+            # mean_util = self.get_utilization(walk)
             is_traj = False
             (
                 traj_input,
@@ -285,7 +294,9 @@ class TrajectoryDataset(Dataset):
             traj = list(itemgetter(*self.trajs[item])(self.traj_map))  # map to node ids
             if len(traj) > self.seq_len:
                 traj = self.cut_traj(traj)
-            mean_util = self.get_utilization(traj)
+            # shift by node ids by 2 to match pad and mask token
+            traj = [t + 2 for t in traj]
+            # mean_util = self.get_utilization(traj)
             is_traj = True
             (
                 traj_input,
@@ -326,8 +337,8 @@ class TrajectoryDataset(Dataset):
             "masked_tokens": traj_masked_tokens,
             "masked_weights": traj_masked_weights,
             "is_traj": is_traj,
-            "mean_util": mean_util,
-            "max_util": sum(self.util_data)
+            # "mean_util": mean_util,
+            # "max_util": sum(self.util_data),
         }
 
         return {key: torch.tensor(value) for key, value in output.items()}
@@ -337,7 +348,8 @@ class TrajectoryDataset(Dataset):
         output_label = []
 
         mask_len = int(len(tokens) * self.mask_ratio)
-        start_loc = round(len(tokens) * random.random() * (1 - self.mask_ratio))
+        start_loc = round(len(tokens) * (1 - self.mask_ratio))
+        # round(len(tokens) * random.random() * (1 - self.mask_ratio))
 
         masked_pos = list(range(start_loc, start_loc + mask_len))
         masked_tokens = tokens[start_loc : start_loc + mask_len]
@@ -359,7 +371,8 @@ class TrajectoryDataset(Dataset):
         output_label = []
 
         mask_len = int(len(tokens) * self.mask_ratio)
-        start_loc = round(len(tokens) * random.random() * (1 - self.mask_ratio))
+        start_loc = round(len(tokens) * (1 - self.mask_ratio))
+        # round(len(tokens) * random.random() * (1 - self.mask_ratio))
 
         masked_pos = list(range(start_loc, start_loc + mask_len))
         masked_tokens = tokens[start_loc : start_loc + mask_len]
@@ -526,7 +539,7 @@ class BertModel(nn.Module):
             self.transformer.embed.tok_embed.weight.data[
                 token_vocab - embed.shape[0] :
             ] = embed
-            print(self.transformer.embed.tok_embed.weight.shape)
+            print("right insert")
         else:
             self.transformer.embed.tok_embed.weight.data = embed
 
@@ -538,7 +551,7 @@ class BertModel(nn.Module):
             torch.sum(h * input_mask.unsqueeze(-1).float(), dim=1) / traj_len.float()
         )
         pooled_h = self.activ1(self.fc(traj_h))
-        pooled_h_2 = self.activ1(self.fc2(traj_h))
+        # pooled_h_2 = self.activ1(self.fc2(traj_h))
 
         masked_pos = masked_pos[:, :, None].expand(-1, -1, h.size(-1))  # B x S x D
         h_masked = torch.gather(h, 1, masked_pos)
@@ -546,6 +559,6 @@ class BertModel(nn.Module):
         # logits_lm = self.decoder(h_masked) + self.decoder_bias
         logits_lm = self.decoder(h_masked)
         logits_clsf = self.classifier(pooled_h)
-        logits_reg = self.regressor(pooled_h_2)
+        # logits_reg = self.regressor(pooled_h_2)
 
-        return logits_lm, logits_clsf, logits_reg
+        return logits_lm, logits_clsf  # , logits_reg
