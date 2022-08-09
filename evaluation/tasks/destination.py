@@ -185,7 +185,7 @@ class DP_LSTM(nn.Module):
         out_dim: int,
         device,
         emb_dim: int = 128,
-        hidden_units: int = 256,
+        hidden_units: int = 512,
         layers: int = 1,
         batch_size: int = 128,
     ):

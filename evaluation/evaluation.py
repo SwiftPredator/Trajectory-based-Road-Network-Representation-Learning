@@ -21,6 +21,8 @@ class Evaluation:
         for name, task in tqdm(self.tasks.items(), desc="Current task"):
             df = pd.DataFrame(columns=list(task.metrics.keys()))
             for n, emb in tqdm(embs, leave=False, desc="Embedding Evaluation"):
+                if "gtn" in n:
+                    emb = emb[2:]  # remove mask and pad token
                 row = pd.Series(task.evaluate(emb=emb))
                 row.name = n
                 df = df.append(row)

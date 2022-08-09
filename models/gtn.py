@@ -62,7 +62,7 @@ class GTNModel(Model):
         emb_dim=256,
         nlayers=2,
         nheads=4,
-        hidden_dim=256,
+        hidden_dim=512,
         max_len=150,
     ):
         self.model = BertModel(

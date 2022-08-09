@@ -111,7 +111,7 @@ model_map = {
 }
 
 
-def generate_dataset(args):
+def generate_dataset(args, seed):
     """
     Generates the dataset with optional speed features.
 
@@ -123,13 +123,14 @@ def generate_dataset(args):
     """
     network = RoadNetwork()
     network.load("../osm_data/porto")
-    trajectory = Trajectory(
-        "../datasets/trajectories/Porto/road_segment_map_final.csv", nrows=args["nrows"]
+    traj_test = pd.read_pickle(
+        f"../datasets/trajectories/Porto/traj_train_test_split/test_69.pkl"
     )
-    traj_dataset = trajectory.generate_TTE_datatset()
+    traj_test["seg_seq"] = traj_test["seg_seq"].map(np.array)
     drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
 
-    if args["speed"] == 1:
+    if "speed" in args and args["speed"] is not None:
+        feats = [f for f in args["speed"].split(",")]
         traj_features = pd.read_csv(
             "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
         )
@@ -148,9 +149,9 @@ def generate_dataset(args):
 
         return (
             network,
-            traj_dataset,
+            traj_test,
             network.generate_road_segment_pyg_dataset(
-                traj_data=traj_features,
+                traj_data=traj_features[["id"] + feats],
                 include_coords=True,
                 drop_labels=drop_label,
             ),
@@ -159,7 +160,7 @@ def generate_dataset(args):
         print("without speed")
         return (
             network,
-            traj_dataset,
+            traj_test,
             network.generate_road_segment_pyg_dataset(
                 include_coords=True, drop_labels=drop_label
             ),
@@ -252,9 +253,9 @@ def evaluate_model(args, data, network, trajectory, seed):
     if "route" in tasks:
         eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
-    adj = np.loadtxt(
-        "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
-    )  # change to desired path
+    # adj = np.loadtxt(
+    #     "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
+    # )  # change to desired path
     for m in models:
         model, margs, model_path = model_map[m]
         if "con" in m or "add" in m:  # case where its an aggregtaed embedding
@@ -262,7 +263,7 @@ def evaluate_model(args, data, network, trajectory, seed):
             for agg_model_name in margs["models"]:
                 agg_model, agg_margs, agg_model_path = model_map[agg_model_name]
                 if agg_model_name in ["gtc", "traj2vec", "gtn"]:
-                    agg_margs["adj"] = adj
+                    # agg_margs["adj"] = adj
                     agg_margs["network"] = network
                 agg_model = agg_model(data, device=device, **agg_margs)
                 agg_model.load_model(
@@ -280,7 +281,7 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m in ["gtn", "gtc"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
-            margs["adj"] = adj
+            # margs["adj"] = adj
         if m == "traj2vec":
             margs["network"] = network
             margs["adj"] = np.loadtxt(
@@ -317,9 +318,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--speed",
-        help="Include speed features (1 or 0)",
-        type=int,
-        default=0,
+        help="Include speed features given as comma seperated column names",
+        type=str,
     )
     parser.add_argument(
         "-p",
@@ -331,15 +331,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "-d", "--device", help="Cuda device number", type=int, required=True
     )
-
-    parser.add_argument(
-        "-r",
-        "--nrows",
-        help="Trajectory sample count to use for evaluation",
-        type=int,
-        required=True,
-    )
-
     parser.add_argument(
         "-se",
         "--seeds",
@@ -355,22 +346,13 @@ if __name__ == "__main__":
         type=str,
     )
 
-    parser.add_argument(
-        "-tp",
-        "--test_prop",
-        help="Procentual test proportion",
-        default=0.3,
-        type=float,
-    )
-
     args = vars(parser.parse_args())
 
-    network, trajectory, data = generate_dataset(args)
     seeds = [int(s) for s in args["seeds"].split(",")]
     results = []
     for seed in seeds:
-        _, test = train_test_split(
-            trajectory, test_size=args["test_prop"], random_state=69
+        network, test, data = generate_dataset(
+            args, seed
         )  # same seed as for training gtn (needs always same test set)
         res = evaluate_model(args, data, network, test, int(seed))
 

@@ -53,6 +53,19 @@ class Trajectory:
 
         return tte.rename(columns={"cpath": "seg_seq"})
 
+    @staticmethod
+    def load_processed_dataset(path):
+        df = pd.read_csv(path, index_col=0)
+        df["seg_seq"] = df["seg_seq"].swifter.apply(
+            lambda x: np.fromstring(
+                x.replace("\n", "").replace("(", "").replace(")", "").replace(" ", ""),
+                sep=",",
+                dtype=np.int,
+            )
+        )
+
+        return df
+
     def generate_speed_features(self, network) -> pd.DataFrame:
         """
         Generates features containing average speed, utilization and accelaration

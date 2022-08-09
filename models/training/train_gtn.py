@@ -28,46 +28,48 @@ from tqdm import tqdm
 
 network = RoadNetwork()
 network.load("../../osm_data/porto")
-trajectory = Trajectory(
-    "../../datasets/trajectories/Porto/road_segment_map_final.csv", nrows=100000000
-).generate_TTE_datatset()
+traj_train = pd.read_pickle(
+    f"../../datasets/trajectories/Porto/traj_train_test_split/train_69.pkl"
+)
+traj_train["seg_seq"] = traj_train["seg_seq"].map(np.array)
+
 traj_features = pd.read_csv(
     "../../datasets/trajectories/Porto/speed_features_unnormalized.csv"
 )
 traj_features.set_index(["u", "v", "key"], inplace=True)
 traj_features.fillna(0, inplace=True)
 
-# data_roadclf = network.generate_road_segment_pyg_dataset(
-#     include_coords=True, drop_labels=["highway_enc"], traj_data=None
-# )
-data_rest = network.generate_road_segment_pyg_dataset(
-    include_coords=True, traj_data=None
+data_roadclf = network.generate_road_segment_pyg_dataset(
+    include_coords=True, drop_labels=["highway_enc"], traj_data=None
 )
+# data_rest = network.generate_road_segment_pyg_dataset(
+#     include_coords=True, traj_data=None
+# )
 
 adj = np.loadtxt("./gtn_precalc_adj/traj_adj_k_2.gz")
 adj_sample = np.loadtxt("./gtn_precalc_adj/traj_adj_k_1_False_no_selfloops_smoothed.gz")
 
 # create init emb from gtc and traj2vec concat
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-dw = Node2VecModel(data_rest, device=device, q=1, p=1)
-dw.load_model("../model_states/deepwalk/model_base.pt")
-gae = GAEModel(data_rest, device=device, encoder=GCNEncoder, emb_dim=128)
-gae.load_model("../model_states/gaegcn/model_base.pt")
-traj2vec = Traj2VecModel(data_rest, network, adj_sample, device=device, emb_dim=128)
+# dw = Node2VecModel(data_roadclf, device=device, q=1, p=1)
+# dw.load_model("../model_states/deepwalk/model_base.pt")
+# gae = GAEModel(data_roadclf, device=device, encoder=GCNEncoder, emb_dim=128)
+# gae.load_model("../model_states/gaegcn/model_base.pt")
+traj2vec = Traj2VecModel(data_roadclf, network, adj_sample, device=device, emb_dim=128)
 traj2vec.load_model("../model_states/traj2vec/model_base.pt")
-gtc = GTCModel(data_rest, device, network, None, adj=adj)
-gtc.load_model("../model_states/gtc/model_base.pt")
+gtc = GTCModel(data_roadclf, device, network, None, adj=adj)
+gtc.load_model("../model_states/gtc/model_noroad.pt")
 
 init_emb = torch.Tensor(np.concatenate([gtc.load_emb(), traj2vec.load_emb()], axis=1))
 
-train, _ = train_test_split(trajectory, test_size=0.3, random_state=69)
+# train, _ = train_test_split(trajectory, test_size=0.3, random_state=69)
 
 # init GTN Model
 model = GTNModel(
-    data_rest,
+    data_roadclf,
     device,
     network,
-    train,
+    traj_train,
     traj_features,
     init_emb,
     adj_sample,
@@ -76,11 +78,11 @@ model = GTNModel(
     hidden_dim=512,
 )
 
-model.train(epochs=30)
+model.train(epochs=20)
 
 torch.save(
     model.model.state_dict(),
     os.path.join(
-        "../model_states/gtn/" + "/model_base_gtc_k2_30e_noutil_noautoreg_512_batch.pt"
+        "../model_states/gtn/" + "/model_base_gtc_k2_20e_noutil_noautoreg_roadclf.pt"
     ),
 )
