@@ -95,7 +95,7 @@ class RoadNetwork:
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
     def fmm_trajectorie_mapping(
-        self, network_file: str, input_file: str, output_files: str
+        self, network_file: str, input_file: str, output_file: str
     ):
         """
         Maps raw trajectory gps data to corresponding road segments on the osmnx graph
@@ -129,7 +129,7 @@ class RoadNetwork:
         print(input_config.to_string())
 
         result_config = fmm.ResultConfig()
-        result_config.file = output_files
+        result_config.file = output_file
         result_config.output_config.write_opath = True
         result_config.output_config.write_ogeom = True
         result_config.output_config.write_pgeom = True
