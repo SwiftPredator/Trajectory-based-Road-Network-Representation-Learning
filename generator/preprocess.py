@@ -80,10 +80,9 @@ def remove_outlier_trajectories(
     df["speed"] = df["speed"].swifter.apply(literal_eval)
     df["speed_mean"] = df["speed"].swifter.apply(np.mean)
     df["cpath"] = df["cpath"].swifter.apply(literal_eval)
-
     # remove mean speed <= 0 since mostly standing trajectories
     # atleast 3 traversed edges & remove remaining zero average speed trajectories
-    df = df[(df["cpath"].str.len() >= min_edges_traversed) & (df["speed_mean"] > 0)]
+    df = df[(df["cpath"].str.len() >= min_edges_traversed) & (df["speed_mean"] > 0) & (df["speed"].str.len() > 1)]
 
     # smooth trajectories that have inf speed values
     def smooth_inf_and_neg_values(x):
@@ -100,7 +99,7 @@ def remove_outlier_trajectories(
 
     df[(df["speed_mean"] > max_speed)]["speed"] = df[(df["speed_mean"] > max_speed)][
         "speed"
-    ].swifter.apply(smooth_inf_and_neg_values)
+    ].apply(smooth_inf_and_neg_values)
     df["speed_mean"] = df["speed"].swifter.apply(np.mean)
 
     # drop remaining inf trajectories which have more than two consectuive inf values

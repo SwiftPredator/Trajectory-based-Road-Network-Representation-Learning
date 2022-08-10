@@ -115,7 +115,7 @@ class RoadNetwork:
 
         k = 16
         gps_error = 0.0005
-        radius = 0.003
+        radius = 0.005 # 0.005 for sf and 0.003 for porta
         vmax = 0.0003
         factor = 1.5
         stmatch_config = STMATCHConfig(k, radius, gps_error, vmax, factor)
