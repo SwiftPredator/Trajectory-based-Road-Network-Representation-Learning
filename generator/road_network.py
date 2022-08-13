@@ -115,7 +115,7 @@ class RoadNetwork:
 
         k = 16
         gps_error = 0.0005
-        radius = 0.005 # 0.005 for sf and 0.003 for porta
+        radius = 0.005  # 0.005 for sf and 0.003 for porta
         vmax = 0.0003
         factor = 1.5
         stmatch_config = STMATCHConfig(k, radius, gps_error, vmax, factor)
@@ -158,6 +158,7 @@ class RoadNetwork:
         include_coords: bool = False,
         one_hot_enc: bool = True,
         return_df: bool = False,
+        dataset: str = "porto",
     ):
         """
         Generates road segment feature dataset in the pyg Data format.
@@ -193,19 +194,22 @@ class RoadNetwork:
             df["y"] = df.geometry.centroid.y / 100  # normalize to -1/1
 
         highway = df["highway"].reset_index(drop=True)
+        drops = [
+            "osmid",
+            "id",
+            "geometry",
+            "idx",
+            "name",
+            "highway",
+            "ref",
+            "access",
+            "width",
+        ]
+        if dataset == "porto":
+            drops.append("area")
+
         df.drop(
-            [
-                "osmid",
-                "id",
-                "geometry",
-                "idx",
-                "name",
-                "highway",
-                "ref",
-                "access",
-                "area",
-                "width",
-            ],
+            drops,
             axis=1,
             inplace=True,
         )
@@ -213,12 +217,34 @@ class RoadNetwork:
         df["bridge"] = (
             df["bridge"]
             .fillna(0)
-            .replace(["yes", "viaduct", "['yes', 'viaduct']", "cantilever"], 1)
+            .replace(
+                [
+                    "yes",
+                    "viaduct",
+                    "['yes', 'viaduct']",
+                    "cantilever",
+                    "['yes', 'movable']",
+                    "movable",
+                    "['no', 'yes']",
+                ],
+                1,
+            )
         )
         df["tunnel"] = (
             df["tunnel"].fillna(0).replace(["yes", "building_passage", "culvert"], 1)
         )
-        df["junction"] = df["junction"].fillna(0).replace(["roundabout", "circular"], 1)
+        if dataset == "sf":
+            df["reversed"] = (
+                df["reversed"]
+                .fillna(0)
+                .replace(["True", "[False, True]"], 1)
+                .replace(["False"], 0)
+            )
+        df["junction"] = (
+            df["junction"]
+            .fillna(0)
+            .replace(["roundabout", "circular", "cloverleaf", "jughandle"], 1)
+        )
         df["lanes"] = df["lanes"].str.extract(r"(\w+)")
         df["maxspeed"] = df["maxspeed"].str.extract(r"(\w+)")
 
@@ -231,6 +257,8 @@ class RoadNetwork:
         imputed = imputer.fit_transform(df)
         df["lanes"] = imputed[:, 2].astype(int)
         df["maxspeed"] = imputed[:, 3].astype(int)
+        if dataset == "sf":
+            df["maxspeed"] = df["maxspeed"] * 1.61
 
         df.drop(drop_labels, axis=1, inplace=True)  # drop label?
 

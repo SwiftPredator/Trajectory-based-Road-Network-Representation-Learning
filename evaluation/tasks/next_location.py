@@ -40,7 +40,7 @@ class NextLocationPrediciton(Task):
 
         # make a train test split on trajectorie data
         train, test = model_selection.train_test_split(
-            self.data, test_size=0.3, random_state=self.seed
+            self.data, test_size=0.2, random_state=self.seed
         )
         self.train_loader = DataLoader(
             NL_Dataset(train, self.network),
@@ -220,22 +220,19 @@ class NL_LSTM(nn.Module):
         self,
         out_dim: int,
         device,
-        emb_dim: int = 256,
-        hidden_units: int = 512,
-        layers: int = 1,
+        emb_dim: int = 128,
+        hidden_units: int = 128,
+        layers: int = 2,
         batch_size: int = 128,
     ):
         super(NL_LSTM, self).__init__()
         self.encoder = nn.LSTM(
-            emb_dim,
-            hidden_units,
-            num_layers=layers,
-            batch_first=True,  # dropout=0.5
+            emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(hidden_units, hidden_units * 2),
             nn.ReLU(),
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(hidden_units * 2, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units, out_dim),
         )
@@ -259,7 +256,7 @@ class NL_LSTM(nn.Module):
 
         return x  # torch.log(torch.div(torch.exp(x) * mask, divider))
 
-    def forward(self, x, lengths, neigh_masks):
+    def forward(self, x, lengths, neigh_masks, mode="train"):
         batch_size, seq_len, _ = x.size()
         self.hidden = self.init_hidden(batch_size=batch_size)
 
@@ -277,8 +274,8 @@ class NL_LSTM(nn.Module):
         )  # get last valid item per batch batch x hidden
 
         yh = self.decoder(x)
-
-        yh = self.masked_out(yh, neigh_masks)
+        if mode == "train":
+            yh = self.masked_out(yh, neigh_masks)
 
         return yh  # (batch x len(possible nodes))
 
@@ -301,17 +298,20 @@ class NL_LSTM(nn.Module):
             print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
 
     def predict(self, loader, emb):
-        self.eval()
-        yhs, ys = [], []
-        for X, y, neigh_mask, lengths, mask, map in loader:
-            emb_batch = self.get_embedding(emb, X.clone(), mask, map)
-            emb_batch = emb_batch.to(self.device)
-            y = y.to(self.device)
-            yh = self.soft(self.forward(emb_batch, lengths, neigh_mask)).argmax(dim=1)
-            yhs.extend(yh.tolist())
-            ys.extend(y.tolist())
+        with torch.no_grad():
+            self.eval()
+            yhs, ys = [], []
+            for X, y, neigh_mask, lengths, mask, map in loader:
+                emb_batch = self.get_embedding(emb, X.clone(), mask, map)
+                emb_batch = emb_batch.to(self.device)
+                y = y.to(self.device)
+                yh = self.soft(
+                    self.forward(emb_batch, lengths, neigh_mask, mode="test")
+                ).argmax(dim=1)
+                yhs.extend(yh.tolist())
+                ys.extend(y.tolist())
 
-        return np.array(yhs), np.array(ys)
+            return np.array(yhs), np.array(ys)
 
     def init_hidden(self, batch_size):
         hidden_a = torch.randn(self.layers, batch_size, self.hidden_units)

@@ -25,8 +25,8 @@ class Traj2VecModel(Model):
         self,
         data,
         network,
-        adj,
         device,
+        adj=None,
         emb_dim=128,
         walk_length=30,
         walks_per_node=25,
@@ -44,7 +44,8 @@ class Traj2VecModel(Model):
             num_negative_samples=num_neg,
             sparse=True,
         ).to(device)
-        self.loader = self.model.loader(batch_size=128, shuffle=True, num_workers=4)
+        if adj is not None:
+            self.loader = self.model.loader(batch_size=128, shuffle=True, num_workers=4)
         self.device = device
         self.data = data
         self.optimizer = torch.optim.SparseAdam(list(self.model.parameters()), lr=0.01)

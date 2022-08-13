@@ -185,21 +185,18 @@ class DP_LSTM(nn.Module):
         out_dim: int,
         device,
         emb_dim: int = 128,
-        hidden_units: int = 512,
-        layers: int = 1,
+        hidden_units: int = 128,
+        layers: int = 2,
         batch_size: int = 128,
     ):
         super(DP_LSTM, self).__init__()
         self.encoder = nn.LSTM(
-            emb_dim,
-            hidden_units,
-            num_layers=layers,
-            batch_first=True,  # dropout=0.5
+            emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
         self.decoder = nn.Sequential(
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(hidden_units, hidden_units * 2),
             nn.ReLU(),
-            nn.Linear(hidden_units, hidden_units),
+            nn.Linear(hidden_units * 2, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units, out_dim),
         )
@@ -254,17 +251,18 @@ class DP_LSTM(nn.Module):
             print(f"Average training loss in episode {e}: {total_loss/len(loader)}")
 
     def predict(self, loader, emb):
-        self.eval()
-        yhs, ys = [], []
-        for X, y, lengths, mask, map in loader:
-            emb_batch = self.get_embedding(emb, X.clone(), mask, map)
-            emb_batch = emb_batch.to(self.device)
-            y = y.to(self.device)
-            yh = self.soft(self.forward(emb_batch, lengths)).argmax(dim=1)
-            yhs.extend(yh.tolist())
-            ys.extend(y.tolist())
+        with torch.no_grad():
+            self.eval()
+            yhs, ys = [], []
+            for X, y, lengths, mask, map in loader:
+                emb_batch = self.get_embedding(emb, X.clone(), mask, map)
+                emb_batch = emb_batch.to(self.device)
+                y = y.to(self.device)
+                yh = self.soft(self.forward(emb_batch, lengths)).argmax(dim=1)
+                yhs.extend(yh.tolist())
+                ys.extend(y.tolist())
 
-        return np.array(yhs), np.array(ys)
+            return np.array(yhs), np.array(ys)
 
     def init_hidden(self, batch_size):
         hidden_a = torch.randn(self.layers, batch_size, self.hidden_units)

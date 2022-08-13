@@ -17,21 +17,9 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (
-    ConcateAdapterModel,
-    GAEModel,
-    GATEncoder,
-    GCNEncoder,
-    GTCModel,
-    GTNModel,
-    HRNRModel,
-    Node2VecModel,
-    PCAModel,
-    RFNModel,
-    SRN2VecModel,
-    Toast,
-    Traj2VecModel,
-)
+from models import (ConcateAdapterModel, GAEModel, GATEncoder, GCNEncoder,
+                    GTCModel, GTNModel, HRNRModel, Node2VecModel, PCAModel,
+                    RFNModel, SRN2VecModel, Toast, Traj2VecModel)
 
 from evaluation import Evaluation
 from tasks.task_loader import *
@@ -124,7 +112,7 @@ def generate_dataset(args, seed):
     network = RoadNetwork()
     network.load("../osm_data/porto")
     traj_test = pd.read_pickle(
-        f"../datasets/trajectories/Porto/traj_train_test_split/test_69.pkl"
+        f"../datasets/trajectories/Porto/traj_train_test_split/test_{seed}.pkl"
     )
     traj_test["seg_seq"] = traj_test["seg_seq"].map(np.array)
     drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
@@ -167,7 +155,7 @@ def generate_dataset(args, seed):
         )
 
 
-def get_model_path_for_task(base_path, tasks, model_name):
+def get_model_path_for_task(base_path, tasks, model_name, seed):
     """This method appends the fitting model state to the path.
     The model state dict must match the dataset and task.
     For example Road Type clf task should exclude road type and therefore needs the state dict trained without road type.
@@ -193,6 +181,9 @@ def get_model_path_for_task(base_path, tasks, model_name):
             if model_name != "rfn"
             else os.path.join(base_path, "model_noroad.params")
         )
+    
+    if model_name == "gtn":
+        return os.path.join(base_path, f"model_base_{seed}.pt")
 
     return (
         os.path.join(base_path, "model_base.pt")
@@ -253,9 +244,9 @@ def evaluate_model(args, data, network, trajectory, seed):
     if "route" in tasks:
         eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
-    # adj = np.loadtxt(
-    #     "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
-    # )  # change to desired path
+    adj = np.loadtxt(
+        "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
+    )  # change to desired path
     for m in models:
         model, margs, model_path = model_map[m]
         if "con" in m or "add" in m:  # case where its an aggregtaed embedding
@@ -263,7 +254,7 @@ def evaluate_model(args, data, network, trajectory, seed):
             for agg_model_name in margs["models"]:
                 agg_model, agg_margs, agg_model_path = model_map[agg_model_name]
                 if agg_model_name in ["gtc", "traj2vec", "gtn"]:
-                    # agg_margs["adj"] = adj
+                    agg_margs["adj"] = adj
                     agg_margs["network"] = network
                 agg_model = agg_model(data, device=device, **agg_margs)
                 agg_model.load_model(
@@ -292,7 +283,7 @@ def evaluate_model(args, data, network, trajectory, seed):
             margs["remove_highway_label"] = True
 
         model = model(data, device=device, **margs)
-        model.load_model(path=get_model_path_for_task(model_path, tasks, m))
+        model.load_model(path=get_model_path_for_task(model_path, tasks, m, seed))
         eva.register_model(m, model)
 
     res = eva.run()

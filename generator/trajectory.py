@@ -34,11 +34,11 @@ class Trajectory:
         self.df["speed"] = self.df["speed"].swifter.apply(
             lambda x: np.fromstring(
                 x.replace("\n", "")
-                .replace("[", "")
-                .replace("]", "")
+                .replace("(", "")
+                .replace("(", "")
                 .replace("  ", " "),
-                sep=" ",
-            )
+                sep=",",
+            )  # for porto this was [ ] and " " as seperator, but should also work now for porto like this
         )
 
     def generate_TTE_datatset(self):
@@ -75,7 +75,6 @@ class Trajectory:
             pd.DataFrame: features in shape num_edges x features
         """
         rdf = pd.DataFrame({"id": network.gdf_edges.fid}, index=network.gdf_edges.index)
-        print(rdf.head())
         # calculate utilization on each edge which is defined as the count an edge is traversed by all trajectories
         seg_seqs = self.df["cpath"].values
         counter = Counter()
@@ -102,6 +101,9 @@ class Trajectory:
             last_lidx, last_ridx = 0, 0
             for l, r, s in zip(opath[0::1], opath[1::1], speed):
                 # print(l, r, s)
+                if s * 111000 * 3.6 >= 200:  # check unrealistic speed values
+                    continue
+
                 lidxs, ridxs = np.where(cpath == l)[0], np.where(cpath == r)[0]
                 lidx, ridx = (
                     lidxs[lidxs >= last_lidx][0],
@@ -117,7 +119,6 @@ class Trajectory:
                     dict(zip(traversed_edges, [1] * len(traversed_edges)))
                 )
                 last_lidx, last_ridx = lidx, ridx
-
         rdf["avg_speed"] = rdf.id.map(
             {
                 k: (float(speed_counter[k]) / count_counter[k]) * 111000 * 3.6

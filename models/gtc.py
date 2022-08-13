@@ -50,7 +50,7 @@ class GTCModel(Model):
         self.model = self.model.to(device)
         self.device = device
         self.network = network
-        if adj is None:
+        if adj is None and traj_data is not None:
             self.traj_to_node = generate_trajid_to_nodeid(network)
             self.traj_data = traj_data["seg_seq"].tolist()
             adj = self.generate_node_traj_adj(
@@ -61,7 +61,6 @@ class GTCModel(Model):
             )
         # else:
         # adj = np.loadtxt(load_traj_adj_path)
-
         self.train_data = self.transform_data(data, adj)
         self.train_data = self.train_data.to(device)
 

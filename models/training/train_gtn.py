@@ -39,26 +39,26 @@ traj_features = pd.read_csv(
 traj_features.set_index(["u", "v", "key"], inplace=True)
 traj_features.fillna(0, inplace=True)
 
-data_roadclf = network.generate_road_segment_pyg_dataset(
-    include_coords=True, drop_labels=["highway_enc"], traj_data=None
-)
-# data_rest = network.generate_road_segment_pyg_dataset(
-#     include_coords=True, traj_data=None
+# data_roadclf = network.generate_road_segment_pyg_dataset(
+#     include_coords=True, drop_labels=["highway_enc"], traj_data=None
 # )
+data_rest = network.generate_road_segment_pyg_dataset(
+    include_coords=True, traj_data=None
+)
 
 adj = np.loadtxt("./gtn_precalc_adj/traj_adj_k_2.gz")
 adj_sample = np.loadtxt("./gtn_precalc_adj/traj_adj_k_1_False_no_selfloops_smoothed.gz")
 
 # create init emb from gtc and traj2vec concat
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 # dw = Node2VecModel(data_roadclf, device=device, q=1, p=1)
 # dw.load_model("../model_states/deepwalk/model_base.pt")
 # gae = GAEModel(data_roadclf, device=device, encoder=GCNEncoder, emb_dim=128)
 # gae.load_model("../model_states/gaegcn/model_base.pt")
-traj2vec = Traj2VecModel(data_roadclf, network, adj_sample, device=device, emb_dim=128)
+traj2vec = Traj2VecModel(data_rest, network, device=device, adj=adj_sample, emb_dim=128)
 traj2vec.load_model("../model_states/traj2vec/model_base.pt")
-gtc = GTCModel(data_roadclf, device, network, None, adj=adj)
-gtc.load_model("../model_states/gtc/model_noroad.pt")
+gtc = GTCModel(data_rest, device, network, None, adj=adj)
+gtc.load_model("../model_states/gtc/model_base.pt")
 
 init_emb = torch.Tensor(np.concatenate([gtc.load_emb(), traj2vec.load_emb()], axis=1))
 
@@ -66,14 +66,14 @@ init_emb = torch.Tensor(np.concatenate([gtc.load_emb(), traj2vec.load_emb()], ax
 
 # init GTN Model
 model = GTNModel(
-    data_roadclf,
+    data_rest,
     device,
     network,
     traj_train,
     traj_features,
     init_emb,
     adj_sample,
-    batch_size=512,
+    batch_size=256,
     emb_dim=256,
     hidden_dim=512,
 )
@@ -83,6 +83,6 @@ model.train(epochs=20)
 torch.save(
     model.model.state_dict(),
     os.path.join(
-        "../model_states/gtn/" + "/model_base_gtc_k2_20e_noutil_noautoreg_roadclf.pt"
+        "../model_states/gtn/" + "/model_base_gtc_k2_20e_seed_69_middle_trans_8ah_4l.pt"
     ),
 )
