@@ -17,9 +17,21 @@ import numpy as np
 import torch
 import torch_geometric.transforms as T
 from generator import RoadNetwork, Trajectory
-from models import (ConcateAdapterModel, GAEModel, GATEncoder, GCNEncoder,
-                    GTCModel, GTNModel, HRNRModel, Node2VecModel, PCAModel,
-                    RFNModel, SRN2VecModel, Toast, Traj2VecModel)
+from models import (
+    ConcateAdapterModel,
+    GAEModel,
+    GATEncoder,
+    GCNEncoder,
+    GTCModel,
+    GTNModel,
+    HRNRModel,
+    Node2VecModel,
+    PCAModel,
+    RFNModel,
+    SRN2VecModel,
+    Toast,
+    Traj2VecModel,
+)
 
 from evaluation import Evaluation
 from tasks.task_loader import *
@@ -109,10 +121,11 @@ def generate_dataset(args, seed):
     Returns:
         pyg Data: Dataset as pyg Data Object with x and edge_index
     """
+    city = args["city"]
     network = RoadNetwork()
-    network.load("../osm_data/porto")
+    network.load(f"../osm_data/{city}")
     traj_test = pd.read_pickle(
-        f"../datasets/trajectories/Porto/traj_train_test_split/test_{seed}.pkl"
+        f"../datasets/trajectories/{city}/traj_train_test_split/test_{seed}.pkl"
     )
     traj_test["seg_seq"] = traj_test["seg_seq"].map(np.array)
     drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
@@ -120,7 +133,7 @@ def generate_dataset(args, seed):
     if "speed" in args and args["speed"] is not None:
         feats = [f for f in args["speed"].split(",")]
         traj_features = pd.read_csv(
-            "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
+            f"../datasets/trajectories/{city}/speed_features_unnormalized.csv"
         )
         traj_features.set_index(["u", "v", "key"], inplace=True)
         traj_features["util"] = (
@@ -142,6 +155,7 @@ def generate_dataset(args, seed):
                 traj_data=traj_features[["id"] + feats],
                 include_coords=True,
                 drop_labels=drop_label,
+                dataset=city,
             ),
         )
     else:
@@ -150,12 +164,12 @@ def generate_dataset(args, seed):
             network,
             traj_test,
             network.generate_road_segment_pyg_dataset(
-                include_coords=True, drop_labels=drop_label
+                include_coords=True, drop_labels=drop_label, dataset=city
             ),
         )
 
 
-def get_model_path_for_task(base_path, tasks, model_name, seed):
+def get_model_path_for_task(base_path, tasks, model_name, seed, city):
     """This method appends the fitting model state to the path.
     The model state dict must match the dataset and task.
     For example Road Type clf task should exclude road type and therefore needs the state dict trained without road type.
@@ -168,8 +182,8 @@ def get_model_path_for_task(base_path, tasks, model_name, seed):
         base_path (_type_): _description_
         tasks (_type_): desc
     """
-    if model_name in ["node2vec", "deepwalk", "traj2vec", "toast", "pca"]:
-        return os.path.join(base_path, "model_base.pt")
+    if model_name in ["node2vec", "deepwalk", "traj2vec", "pca"]:
+        return os.path.join(base_path, f"model_base_{city}.pt")
 
     # if "meanspeed" in tasks and model_name in ["gtc", "gtn"]:
     #     assert len(tasks) == 1
@@ -177,18 +191,18 @@ def get_model_path_for_task(base_path, tasks, model_name, seed):
     if "roadclf" in tasks:
         assert len(tasks) == 1
         return (
-            os.path.join(base_path, "model_noroad.pt")
+            os.path.join(base_path, f"model_noroad_{city}.pt")
             if model_name != "rfn"
-            else os.path.join(base_path, "model_noroad.params")
+            else os.path.join(base_path, f"model_noroad_{city}.params")
         )
-    
+
     if model_name == "gtn":
-        return os.path.join(base_path, f"model_base_{seed}.pt")
+        return os.path.join(base_path, f"model_base_{city}_{seed}.pt")
 
     return (
-        os.path.join(base_path, "model_base.pt")
+        os.path.join(base_path, f"model_base_{city}.pt")
         if model_name != "rfn"
-        else os.path.join(base_path, "model_noroad.params")
+        else os.path.join(base_path, f"model_noroad_{city}.params")
     )
 
 
@@ -258,7 +272,13 @@ def evaluate_model(args, data, network, trajectory, seed):
                     agg_margs["network"] = network
                 agg_model = agg_model(data, device=device, **agg_margs)
                 agg_model.load_model(
-                    path=get_model_path_for_task(agg_model_path, tasks, agg_model_name)
+                    path=get_model_path_for_task(
+                        agg_model_path,
+                        tasks,
+                        agg_model_name,
+                        seed=seed,
+                        city=args["city"],
+                    )
                 )
                 agg_models.append(agg_model)
 
@@ -266,13 +286,27 @@ def evaluate_model(args, data, network, trajectory, seed):
 
         if m in ["toast", "srn2vec", "rfn", "hrnr"]:
             margs["network"] = network
+
+        if m == "toast" and "roadclf" in tasks:
+            toast_network = network
+            toast_network.gdf_edges["maxspeed"] = toast_network.gdf_edges[
+                "maxspeed"
+            ].fillna(0)
+            toast_network.gdf_edges["maxspeed_enc"] = pd.factorize(
+                toast_network.gdf_edges["maxspeed"]
+            )[0]
+            margs["predict_att"] = "maxspeed_enc"
+            margs["network"] = toast_network
+
         if m in ["gaegcn_no_features", "gaegat_no_features"]:
             data.x = None
             data = T.OneHotDegree(128)(data)
+
         if m in ["gtn", "gtc"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
             # margs["adj"] = adj
+
         if m == "traj2vec":
             margs["network"] = network
             margs["adj"] = np.loadtxt(
@@ -282,8 +316,13 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m in ["rfn", "hrnr", "srn2vec"] and args["drop_label"] == "highway_enc":
             margs["remove_highway_label"] = True
 
+        if m == "hrnr":
+            margs["city"] = args["city"]
+
         model = model(data, device=device, **margs)
-        model.load_model(path=get_model_path_for_task(model_path, tasks, m, seed))
+        model.load_model(
+            path=get_model_path_for_task(model_path, tasks, m, seed, city=args["city"])
+        )
         eva.register_model(m, model)
 
     res = eva.run()
@@ -329,13 +368,19 @@ if __name__ == "__main__":
         default="69",
         type=str,
     )
-
     parser.add_argument(
         "-dl",
         "--drop_label",
         help="remove label from train dataset",
         type=str,
     )
+    parser.add_argument(
+        "-c",
+        "--city",
+        help="trajectory dataset to evaluate on",
+        type=str,
+        default="porto",
+    )  # sf, porto or hannover
 
     args = vars(parser.parse_args())
 

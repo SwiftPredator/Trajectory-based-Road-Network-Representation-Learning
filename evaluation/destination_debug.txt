@@ -1,0 +1,551 @@
+without speed
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  10%|█         | 38724/370616 [00:00<00:00, 387234.83it/s]Pandas Apply:  25%|██▌       | 94442/370616 [00:00<00:00, 487198.20it/s]Pandas Apply:  42%|████▏     | 154730/370616 [00:00<00:00, 540019.03it/s]Pandas Apply:  58%|█████▊    | 214627/370616 [00:00<00:00, 563291.75it/s]Pandas Apply:  74%|███████▍  | 275999/370616 [00:00<00:00, 581473.17it/s]Pandas Apply:  91%|█████████ | 337369/370616 [00:00<00:00, 592421.79it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 559962.14it/s]
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  17%|█▋        | 61825/370616 [00:00<00:00, 618241.75it/s]Pandas Apply:  37%|███▋      | 137090/370616 [00:00<00:00, 697304.40it/s]Pandas Apply:  57%|█████▋    | 213042/370616 [00:00<00:00, 725711.20it/s]Pandas Apply:  78%|███████▊  | 288040/370616 [00:00<00:00, 735291.11it/s]Pandas Apply:  98%|█████████▊| 364333/370616 [00:00<00:00, 745254.27it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 596229.17it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  60%|█████▉    | 55548/92655 [00:00<00:00, 555471.26it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 575481.51it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  75%|███████▍  | 69384/92655 [00:00<00:00, 693834.04it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 559197.48it/s]
+[(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)] [(25503936, 4722746638, 0), (4722746638, 4722746637, 0), (4722746638, 25504027, 0)] [(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)]
+[8159, 4888, 8556, 5014]
+Primal V,E: (5358, 11331), Dual V,E: (11331, 26617)
+[20:59:10] ../src/base.cc:79: cuDNN lib mismatch: linked-against version 8201 != compiled-against version 8101.  Set MXNET_CUDNN_LIB_CHECKING=0 to quiet this warning.
+FeatureInfo(no_node_features=2, no_edge_features=16, no_between_edge_features=4)
+Current task:   0%|          | 0/1 [00:00<?, ?it/s]Average training loss in episode 0: 6.023522236729195
+Average training loss in episode 1: 4.431131710663685
+Average training loss in episode 2: 4.037106982581523
+Average training loss in episode 3: 3.8482000304190493
+Average training loss in episode 4: 3.7271031431071666
+Average training loss in episode 5: 3.6384411500303786
+Average training loss in episode 6: 3.573502149041845
+Average training loss in episode 7: 3.5287236982946237
+Average training loss in episode 8: 3.47836471229627
+Average training loss in episode 9: 3.4356788495627555
+Average training loss in episode 0: 5.7469038443012135
+Average training loss in episode 1: 4.184006610298684
+Average training loss in episode 2: 3.8758473455576605
+Average training loss in episode 3: 3.7164322009402744
+Average training loss in episode 4: 3.617259527108946
+Average training loss in episode 5: 3.538224306883733
+Average training loss in episode 6: 3.4826571246537057
+Average training loss in episode 7: 3.4358561835894927
+Average training loss in episode 8: 3.3985978430805943
+Average training loss in episode 9: 3.3645462476087538
+Average training loss in episode 0: 6.012179111907495
+Average training loss in episode 1: 4.382281888914371
+Average training loss in episode 2: 4.007748143449014
+Average training loss in episode 3: 3.819280563467774
+Average training loss in episode 4: 3.7007398740362727
+Average training loss in episode 5: 3.6169332782866546
+Average training loss in episode 6: 3.551638810015515
+Average training loss in episode 7: 3.496517823545972
+Average training loss in episode 8: 3.452748466591809
+Average training loss in episode 9: 3.4137325135383816
+Average training loss in episode 0: 5.66370211977985
+Average training loss in episode 1: 4.3031323262341115
+Average training loss in episode 2: 3.9646359273741916
+Average training loss in episode 3: 3.7848359310165955
+Average training loss in episode 4: 3.6677103473995274
+Average training loss in episode 5: 3.582878320915264
+Average training loss in episode 6: 3.515752324412541
+Average training loss in episode 7: 3.4589700926074665
+Average training loss in episode 8: 3.411599935747642
+Average training loss in episode 9: 3.3717089061578993
+Average training loss in episode 0: 6.553140090315382
+Average training loss in episode 1: 4.852274538403717
+Average training loss in episode 2: 4.3784417190604445
+Average training loss in episode 3: 4.143918365404751
+Average training loss in episode 4: 4.00176474995376
+Average training loss in episode 5: 3.8915886707727423
+Average training loss in episode 6: 3.8135519906960798
+Average training loss in episode 7: 3.7480284291736328
+Average training loss in episode 8: 3.6960826881682673
+Average training loss in episode 9: 3.649072261146419
+Average training loss in episode 0: 6.579649443784471
+Average training loss in episode 1: 4.8860844347358405
+Average training loss in episode 2: 4.390022739521048
+Average training loss in episode 3: 4.151579653031259
+Average training loss in episode 4: 3.997973828684559
+Average training loss in episode 5: 3.8931564227652156
+Average training loss in episode 6: 3.8151604256577256
+Average training loss in episode 7: 3.7568146675331158
+Average training loss in episode 8: 3.7010105377402756
+Average training loss in episode 9: 3.6579727105672846
+Average training loss in episode 0: 7.255375685612799
+Average training loss in episode 1: 5.3635521521225815
+Average training loss in episode 2: 4.563133250942546
+Average training loss in episode 3: 4.221120688138087
+Average training loss in episode 4: 4.023540476738419
+Average training loss in episode 5: 3.8904223754919696
+Average training loss in episode 6: 3.7951804597074816
+Average training loss in episode 7: 3.7205311270708536
+Average training loss in episode 8: 3.659986118585365
+Average training loss in episode 9: 3.606350899730598
+Average training loss in episode 0: 6.970923496873339
+Average training loss in episode 1: 5.668381007995395
+Average training loss in episode 2: 5.1000088637705
+Average training loss in episode 3: 4.777963042917831
+Average training loss in episode 4: 4.575051656085483
+Average training loss in episode 5: 4.433432484858603
+Average training loss in episode 6: 4.32872862644617
+Average training loss in episode 7: 4.253022151428033
+Average training loss in episode 8: 4.191905119471787
+Average training loss in episode 9: 4.13949356586235
+Average training loss in episode 0: 6.4165970574426385
+Average training loss in episode 1: 4.7476789984255205
+Average training loss in episode 2: 4.295238853488838
+Average training loss in episode 3: 4.086523258225036
+Average training loss in episode 4: 3.956183210591585
+Average training loss in episode 5: 3.8686520246511007
+Average training loss in episode 6: 3.800017175424165
+Average training loss in episode 7: 3.747029377610644
+Average training loss in episode 8: 3.7036629885599757
+Average training loss in episode 9: 3.6675612966000046
+Average training loss in episode 0: 7.768099746651412
+Average training loss in episode 1: 6.528462429072976
+Average training loss in episode 2: 5.41065031454708
+Average training loss in episode 3: 4.8812670338878315
+Average training loss in episode 4: 4.578737833881905
+Average training loss in episode 5: 4.380975723266602
+Average training loss in episode 6: 4.244581098385279
+Average training loss in episode 7: 4.140974560165932
+Average training loss in episode 8: 4.060379653675121
+Average training loss in episode 9: 3.9978944958902853
+Current task: 100%|██████████| 1/1 [5:46:52<00:00, 20812.38s/it]Current task: 100%|██████████| 1/1 [5:46:52<00:00, 20812.38s/it]
+without speed
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  14%|█▎        | 50911/370616 [00:00<00:00, 509106.84it/s]Pandas Apply:  31%|███       | 114051/370616 [00:00<00:00, 581043.32it/s]Pandas Apply:  48%|████▊     | 177014/370616 [00:00<00:00, 603225.96it/s]Pandas Apply:  65%|██████▍   | 240002/370616 [00:00<00:00, 613745.40it/s]Pandas Apply:  82%|████████▏ | 302646/370616 [00:00<00:00, 618321.22it/s]Pandas Apply:  99%|█████████▊| 365644/370616 [00:00<00:00, 622283.88it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 602054.17it/s]
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  17%|█▋        | 64391/370616 [00:00<00:00, 643909.08it/s]Pandas Apply:  38%|███▊      | 142180/370616 [00:00<00:00, 722716.68it/s]Pandas Apply:  59%|█████▉    | 220186/370616 [00:00<00:00, 748897.81it/s]Pandas Apply:  81%|████████  | 299101/370616 [00:00<00:00, 764784.82it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 621283.50it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  62%|██████▏   | 57195/92655 [00:00<00:00, 571949.18it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 589980.70it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  80%|███████▉  | 74016/92655 [00:00<00:00, 740158.94it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 618016.89it/s]
+[(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)] [(25503936, 4722746638, 0), (4722746638, 4722746637, 0), (4722746638, 25504027, 0)] [(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)]
+[8159, 4888, 8556, 5014]
+Primal V,E: (5358, 11331), Dual V,E: (11331, 26617)
+FeatureInfo(no_node_features=2, no_edge_features=16, no_between_edge_features=4)
+Current task:   0%|          | 0/1 [00:00<?, ?it/s]Average training loss in episode 0: 5.677128206300472
+Average training loss in episode 1: 4.262552429628635
+Average training loss in episode 2: 3.920568932815151
+Average training loss in episode 3: 3.7334214695909407
+Average training loss in episode 4: 3.6109673058130465
+Average training loss in episode 5: 3.522291426500563
+Average training loss in episode 6: 3.4514276079051402
+Average training loss in episode 7: 3.3923379857895783
+Average training loss in episode 8: 3.3451736434388555
+Average training loss in episode 9: 3.304784007493962
+Average training loss in episode 0: 5.835251011901139
+Average training loss in episode 1: 4.291778709348394
+Average training loss in episode 2: 3.9589684049068894
+Average training loss in episode 3: 3.7948474663397227
+Average training loss in episode 4: 3.687268051653277
+Average training loss in episode 5: 3.6113837045200623
+Average training loss in episode 6: 3.555862148822342
+Average training loss in episode 7: 3.5105192743612257
+Average training loss in episode 8: 3.473456258602564
+Average training loss in episode 9: 3.4411729514928155
+Average training loss in episode 0: 6.076574610083143
+Average training loss in episode 1: 4.482207970395272
+Average training loss in episode 2: 4.06801303809519
+Average training loss in episode 3: 3.858595500664158
+Average training loss in episode 4: 3.7260858034560695
+Average training loss in episode 5: 3.624869250460883
+Average training loss in episode 6: 3.556129846125018
+Average training loss in episode 7: 3.498401471593762
+Average training loss in episode 8: 3.45111838098389
+Average training loss in episode 9: 3.409442254522229
+Average training loss in episode 0: 5.660870446025996
+Average training loss in episode 1: 4.304077170501098
+Average training loss in episode 2: 3.963387542337344
+Average training loss in episode 3: 3.7825881180183663
+Average training loss in episode 4: 3.664024754782408
+Average training loss in episode 5: 3.575753800118167
+Average training loss in episode 6: 3.5084732085960346
+Average training loss in episode 7: 3.4488034979414546
+Average training loss in episode 8: 3.4030682398469407
+Average training loss in episode 9: 3.3668469842626245
+Average training loss in episode 0: 6.497041890634358
+Average training loss in episode 1: 4.827113900395388
+Average training loss in episode 2: 4.3554791073772785
+Average training loss in episode 3: 4.116503176109567
+Average training loss in episode 4: 3.962700917246592
+Average training loss in episode 5: 3.857958577614463
+Average training loss in episode 6: 3.7809920890555198
+Average training loss in episode 7: 3.7129477634614343
+Average training loss in episode 8: 3.661298107705722
+Average training loss in episode 9: 3.627235789654663
+Average training loss in episode 0: 6.588096729958255
+Average training loss in episode 1: 4.8435438225941105
+Average training loss in episode 2: 4.348119958988211
+Average training loss in episode 3: 4.109901297487607
+Average training loss in episode 4: 3.9665328679163814
+Average training loss in episode 5: 3.860526900594406
+Average training loss in episode 6: 3.7830643367372163
+Average training loss in episode 7: 3.7206720660404606
+Average training loss in episode 8: 3.6683846662716313
+Average training loss in episode 9: 3.625489885965105
+Average training loss in episode 0: 7.14954458876868
+Average training loss in episode 1: 5.256531277414185
+Average training loss in episode 2: 4.564448166288724
+Average training loss in episode 3: 4.241236668923942
+Average training loss in episode 4: 4.043693536882243
+Average training loss in episode 5: 3.9093163016751324
+Average training loss in episode 6: 3.810583361933903
+Average training loss in episode 7: 3.7329589625748483
+Average training loss in episode 8: 3.670247147096455
+Average training loss in episode 9: 3.615695986629191
+Average training loss in episode 0: 7.017862877793075
+Average training loss in episode 1: 5.6727219661955015
+Average training loss in episode 2: 5.053631830610623
+Average training loss in episode 3: 4.74424013972941
+Average training loss in episode 4: 4.555943272390418
+Average training loss in episode 5: 4.4258185420905685
+Average training loss in episode 6: 4.328582117570698
+Average training loss in episode 7: 4.254057405073999
+Average training loss in episode 8: 4.189416816880031
+Average training loss in episode 9: 4.137463297633176
+Average training loss in episode 0: 6.486449478080918
+Average training loss in episode 1: 4.807679900806912
+Average training loss in episode 2: 4.364509891080593
+Average training loss in episode 3: 4.153081715436271
+Average training loss in episode 4: 4.011169951594337
+Average training loss in episode 5: 3.921589480908536
+Average training loss in episode 6: 3.8556606400737445
+Average training loss in episode 7: 3.791518791604437
+Average training loss in episode 8: 3.7474603089838396
+Average training loss in episode 9: 3.714163583615867
+Average training loss in episode 0: 7.6835952226628255
+Average training loss in episode 1: 6.354334603357052
+Average training loss in episode 2: 5.3823943645256
+Average training loss in episode 3: 4.852110935179568
+Average training loss in episode 4: 4.543426308842654
+Average training loss in episode 5: 4.334999862296805
+Average training loss in episode 6: 4.194634596287217
+Average training loss in episode 7: 4.082352469968533
+Average training loss in episode 8: 4.002157885066712
+Average training loss in episode 9: 3.931313662897816
+Current task: 100%|██████████| 1/1 [5:27:43<00:00, 19663.57s/it]Current task: 100%|██████████| 1/1 [5:27:43<00:00, 19663.57s/it]
+without speed
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  15%|█▌        | 57193/370616 [00:00<00:00, 571927.82it/s]Pandas Apply:  34%|███▍      | 127552/370616 [00:00<00:00, 649372.76it/s]Pandas Apply:  54%|█████▎    | 198781/370616 [00:00<00:00, 678098.59it/s]Pandas Apply:  73%|███████▎  | 270345/370616 [00:00<00:00, 692917.10it/s]Pandas Apply:  92%|█████████▏| 341980/370616 [00:00<00:00, 701363.14it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 676751.93it/s]
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  19%|█▉        | 70697/370616 [00:00<00:00, 706962.25it/s]Pandas Apply:  42%|████▏     | 156032/370616 [00:00<00:00, 793070.52it/s]Pandas Apply:  65%|██████▌   | 242413/370616 [00:00<00:00, 825369.20it/s]Pandas Apply:  89%|████████▉ | 329162/370616 [00:00<00:00, 841995.10it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 683078.75it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  71%|███████   | 65623/92655 [00:00<00:00, 656224.37it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 663373.16it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  86%|████████▋ | 80136/92655 [00:00<00:00, 801349.30it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 672686.74it/s]
+[(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)] [(25503936, 4722746638, 0), (4722746638, 4722746637, 0), (4722746638, 25504027, 0)] [(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)]
+[8159, 4888, 8556, 5014]
+Primal V,E: (5358, 11331), Dual V,E: (11331, 26617)
+FeatureInfo(no_node_features=2, no_edge_features=16, no_between_edge_features=4)
+Current task:   0%|          | 0/1 [00:00<?, ?it/s]Average training loss in episode 0: 6.131777028352516
+Average training loss in episode 1: 4.4855673833446605
+Average training loss in episode 2: 4.075681361374934
+Average training loss in episode 3: 3.873246730032547
+Average training loss in episode 4: 3.737642970533002
+Average training loss in episode 5: 3.6439004135395283
+Average training loss in episode 6: 3.5709190796752
+Average training loss in episode 7: 3.51878381631651
+Average training loss in episode 8: 3.462344395521596
+Average training loss in episode 9: 3.4216941420544575
+Average training loss in episode 0: 5.855344331066911
+Average training loss in episode 1: 4.26022949040924
+Average training loss in episode 2: 3.926553696229313
+Average training loss in episode 3: 3.7679881977112912
+Average training loss in episode 4: 3.667898399724486
+Average training loss in episode 5: 3.5977544129224115
+Average training loss in episode 6: 3.5438605968464802
+Average training loss in episode 7: 3.500095310461455
+Average training loss in episode 8: 3.465101610889751
+Average training loss in episode 9: 3.438732942823547
+Average training loss in episode 0: 5.925748059104161
+Average training loss in episode 1: 4.381628640778157
+Average training loss in episode 2: 4.005338772225775
+Average training loss in episode 3: 3.811052205812865
+Average training loss in episode 4: 3.6862505068436513
+Average training loss in episode 5: 3.5956865256003914
+Average training loss in episode 6: 3.5244140292399497
+Average training loss in episode 7: 3.468591335728682
+Average training loss in episode 8: 3.417405099170643
+Average training loss in episode 9: 3.3765298167644944
+Average training loss in episode 0: 6.043877519955292
+Average training loss in episode 1: 4.508512718242835
+Average training loss in episode 2: 4.109298743266427
+Average training loss in episode 3: 3.9039274026017163
+Average training loss in episode 4: 3.7740274051934977
+Average training loss in episode 5: 3.6801799140582427
+Average training loss in episode 6: 3.6061582723375185
+Average training loss in episode 7: 3.5468929327653917
+Average training loss in episode 8: 3.4990569139053807
+Average training loss in episode 9: 3.4549410520996178
+Average training loss in episode 0: 6.423058721900645
+Average training loss in episode 1: 4.786088201881114
+Average training loss in episode 2: 4.3252535139658175
+Average training loss in episode 3: 4.093843056352099
+Average training loss in episode 4: 3.9372189377552895
+Average training loss in episode 5: 3.8345892916726805
+Average training loss in episode 6: 3.7464187428437543
+Average training loss in episode 7: 3.682311728185053
+Average training loss in episode 8: 3.632066123393359
+Average training loss in episode 9: 3.5854754171318772
+Average training loss in episode 0: 6.407524828094145
+Average training loss in episode 1: 4.751599402058849
+Average training loss in episode 2: 4.295522780378879
+Average training loss in episode 3: 4.076998745538912
+Average training loss in episode 4: 3.933822439191091
+Average training loss in episode 5: 3.8361944506840153
+Average training loss in episode 6: 3.7568906476484476
+Average training loss in episode 7: 3.6941074689448867
+Average training loss in episode 8: 3.642713991647267
+Average training loss in episode 9: 3.6026510125365707
+Average training loss in episode 0: 7.436984936176743
+Average training loss in episode 1: 5.637336045338962
+Average training loss in episode 2: 4.774501204490662
+Average training loss in episode 3: 4.386696459838698
+Average training loss in episode 4: 4.165281526291568
+Average training loss in episode 5: 4.014871323635565
+Average training loss in episode 6: 3.9031028296407415
+Average training loss in episode 7: 3.8150112549902984
+Average training loss in episode 8: 3.7451565295293188
+Average training loss in episode 9: 3.6885195469987986
+Average training loss in episode 0: 7.01034487545161
+Average training loss in episode 1: 5.678563973521659
+Average training loss in episode 2: 5.063767888269372
+Average training loss in episode 3: 4.756021275046122
+Average training loss in episode 4: 4.570301875883703
+Average training loss in episode 5: 4.442893208061134
+Average training loss in episode 6: 4.341347534353562
+Average training loss in episode 7: 4.2547034762840905
+Average training loss in episode 8: 4.1988047512855315
+Average training loss in episode 9: 4.1389071141158675
+Average training loss in episode 0: 6.540869407232295
+Average training loss in episode 1: 4.759218109246776
+Average training loss in episode 2: 4.290183889602429
+Average training loss in episode 3: 4.078098405461285
+Average training loss in episode 4: 3.952418910864308
+Average training loss in episode 5: 3.8588267897374062
+Average training loss in episode 6: 3.793410646981297
+Average training loss in episode 7: 3.7434728422217605
+Average training loss in episode 8: 3.6945432865817245
+Average training loss in episode 9: 3.6576346152395174
+Average training loss in episode 0: 7.707736812243804
+Average training loss in episode 1: 6.431566944438449
+Average training loss in episode 2: 5.399195416856207
+Average training loss in episode 3: 4.871870937926993
+Average training loss in episode 4: 4.578004125732084
+Average training loss in episode 5: 4.391833226983718
+Average training loss in episode 6: 4.255904447966517
+Average training loss in episode 7: 4.157070792511682
+Average training loss in episode 8: 4.080698088387758
+Average training loss in episode 9: 4.016716616588403
+Current task: 100%|██████████| 1/1 [3:41:42<00:00, 13302.63s/it]Current task: 100%|██████████| 1/1 [3:41:42<00:00, 13302.63s/it]
+without speed
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  15%|█▌        | 55789/370616 [00:00<00:00, 557889.20it/s]Pandas Apply:  34%|███▍      | 125944/370616 [00:00<00:00, 642393.16it/s]Pandas Apply:  53%|█████▎    | 196862/370616 [00:00<00:00, 672885.99it/s]Pandas Apply:  72%|███████▏  | 268418/370616 [00:00<00:00, 689730.80it/s]Pandas Apply:  92%|█████████▏| 340084/370616 [00:00<00:00, 699439.45it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 673809.94it/s]
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  19%|█▉        | 71062/370616 [00:00<00:00, 710615.59it/s]Pandas Apply:  42%|████▏     | 156634/370616 [00:00<00:00, 795964.66it/s]Pandas Apply:  66%|██████▌   | 243313/370616 [00:00<00:00, 828276.32it/s]Pandas Apply:  89%|████████▉ | 330139/370616 [00:00<00:00, 844057.39it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 684660.97it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  71%|███████   | 65923/92655 [00:00<00:00, 659221.20it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 669642.90it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  84%|████████▍ | 78016/92655 [00:00<00:00, 780157.02it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 661919.00it/s]
+[(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)] [(25503936, 4722746638, 0), (4722746638, 4722746637, 0), (4722746638, 25504027, 0)] [(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)]
+[8159, 4888, 8556, 5014]
+Primal V,E: (5358, 11331), Dual V,E: (11331, 26617)
+FeatureInfo(no_node_features=2, no_edge_features=16, no_between_edge_features=4)
+Current task:   0%|          | 0/1 [00:00<?, ?it/s]Average training loss in episode 0: 6.1415379844317775
+Average training loss in episode 1: 4.532763510777805
+Average training loss in episode 2: 4.119158286416069
+Average training loss in episode 3: 3.921625570039064
+Average training loss in episode 4: 3.796463174714568
+Average training loss in episode 5: 3.702569460671251
+Average training loss in episode 6: 3.6353173519366355
+Average training loss in episode 7: 3.5824280717096277
+Average training loss in episode 8: 3.533998605954713
+Average training loss in episode 9: 3.4966820079977343
+Average training loss in episode 0: 5.713436547563879
+Average training loss in episode 1: 4.221056792288195
+Average training loss in episode 2: 3.8922701125645505
+Average training loss in episode 3: 3.723937406065714
+Average training loss in episode 4: 3.621223400640224
+Average training loss in episode 5: 3.5467557195800445
+Average training loss in episode 6: 3.4880422758792644
+Average training loss in episode 7: 3.4412004061825368
+Average training loss in episode 8: 3.402086018528069
+Average training loss in episode 9: 3.365569511829819
+Average training loss in episode 0: 6.155683897476829
+Average training loss in episode 1: 4.452861407185128
+Average training loss in episode 2: 4.030261751037935
+Average training loss in episode 3: 3.8226096942938494
+Average training loss in episode 4: 3.6959885872530016
+Average training loss in episode 5: 3.5980808227760357
+Average training loss in episode 6: 3.528224701710169
+Average training loss in episode 7: 3.4687342791926135
+Average training loss in episode 8: 3.4195085747465903
+Average training loss in episode 9: 3.382865766464676
+Average training loss in episode 0: 6.099455823555836
+Average training loss in episode 1: 4.496451937032668
+Average training loss in episode 2: 4.112713211478449
+Average training loss in episode 3: 3.914564519297352
+Average training loss in episode 4: 3.7883024209112093
+Average training loss in episode 5: 3.699709523448628
+Average training loss in episode 6: 3.6303088200685067
+Average training loss in episode 7: 3.5726364225313807
+Average training loss in episode 8: 3.5323210938200766
+Average training loss in episode 9: 3.4928987935103106
+Average training loss in episode 0: 6.537525795441306
+Average training loss in episode 1: 4.7780022957048365
+Average training loss in episode 2: 4.311661787783902
+Average training loss in episode 3: 4.083887300438644
+Average training loss in episode 4: 3.9429318358226375
+Average training loss in episode 5: 3.842550748290278
+Average training loss in episode 6: 3.763813710015123
+Average training loss in episode 7: 3.7023781040755424
+Average training loss in episode 8: 3.651560098426777
+Average training loss in episode 9: 3.609736932246066
+Average training loss in episode 0: 6.433560323978656
+Average training loss in episode 1: 4.74495157681776
+Average training loss in episode 2: 4.307411796150945
+Average training loss in episode 3: 4.095271915032718
+Average training loss in episode 4: 3.9600480765268946
+Average training loss in episode 5: 3.8620620323808152
+Average training loss in episode 6: 3.791358268392679
+Average training loss in episode 7: 3.727585634803245
+Average training loss in episode 8: 3.6818826873658113
+Average training loss in episode 9: 3.637511700556423
+Average training loss in episode 0: 7.1622946315048805
+Average training loss in episode 1: 5.417388279135056
+Average training loss in episode 2: 4.669331381334126
+Average training loss in episode 3: 4.326371157037619
+Average training loss in episode 4: 4.117455881274208
+Average training loss in episode 5: 3.9821370329646117
+Average training loss in episode 6: 3.874558467891335
+Average training loss in episode 7: 3.793414817989202
+Average training loss in episode 8: 3.730277619967803
+Average training loss in episode 9: 3.6747126967867434
+Average training loss in episode 0: 6.910841001331477
+Average training loss in episode 1: 5.555152877918265
+Average training loss in episode 2: 4.98270318192013
+Average training loss in episode 3: 4.677023666998299
+Average training loss in episode 4: 4.518453081009796
+Average training loss in episode 5: 4.379415829537323
+Average training loss in episode 6: 4.27609981225999
+Average training loss in episode 7: 4.192687789379563
+Average training loss in episode 8: 4.202678080751093
+Average training loss in episode 9: 4.162953426824749
+Average training loss in episode 0: 6.498868890230169
+Average training loss in episode 1: 4.808674959846623
+Average training loss in episode 2: 4.340275433840673
+Average training loss in episode 3: 4.123127339294602
+Average training loss in episode 4: 3.993206471040104
+Average training loss in episode 5: 3.8997191773593753
+Average training loss in episode 6: 3.8330647520597467
+Average training loss in episode 7: 3.7813934054822553
+Average training loss in episode 8: 3.7336364006469265
+Average training loss in episode 9: 3.701451724734754
+Average training loss in episode 0: 7.733472573823033
+Average training loss in episode 1: 6.346182499801256
+Average training loss in episode 2: 5.336433331610748
+Average training loss in episode 3: 4.84944783850928
+Average training loss in episode 4: 4.571797792424155
+Average training loss in episode 5: 4.395688130710665
+Average training loss in episode 6: 4.268806986716571
+Average training loss in episode 7: 4.173484301040186
+Average training loss in episode 8: 4.098254461973411
+Average training loss in episode 9: 4.036784764482172
+Current task: 100%|██████████| 1/1 [3:50:55<00:00, 13855.38s/it]Current task: 100%|██████████| 1/1 [3:50:55<00:00, 13855.38s/it]
+without speed
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  14%|█▍        | 52389/370616 [00:00<00:00, 523884.25it/s]Pandas Apply:  32%|███▏      | 117863/370616 [00:00<00:00, 600852.31it/s]Pandas Apply:  50%|█████     | 185539/370616 [00:00<00:00, 635507.84it/s]Pandas Apply:  68%|██████▊   | 251078/370616 [00:00<00:00, 643354.23it/s]Pandas Apply:  86%|████████▌ | 317211/370616 [00:00<00:00, 649835.47it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 635223.41it/s]
+Pandas Apply:   0%|          | 0/370616 [00:00<?, ?it/s]Pandas Apply:  18%|█▊        | 65725/370616 [00:00<00:00, 657249.06it/s]Pandas Apply:  39%|███▊      | 143012/370616 [00:00<00:00, 725260.73it/s]Pandas Apply:  61%|██████    | 225486/370616 [00:00<00:00, 770683.67it/s]Pandas Apply:  82%|████████▏ | 305305/370616 [00:00<00:00, 781541.67it/s]Pandas Apply: 100%|██████████| 370616/370616 [00:00<00:00, 633584.78it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  63%|██████▎   | 58542/92655 [00:00<00:00, 585416.37it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 594917.38it/s]
+Pandas Apply:   0%|          | 0/92655 [00:00<?, ?it/s]Pandas Apply:  76%|███████▌  | 70630/92655 [00:00<00:00, 706298.99it/s]Pandas Apply: 100%|██████████| 92655/92655 [00:00<00:00, 603452.23it/s]
+[(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)] [(25503936, 4722746638, 0), (4722746638, 4722746637, 0), (4722746638, 25504027, 0)] [(25503936, 4722746638, 0), (25503936, 281726624, 0), (4722746638, 4722746637, 0)]
+[8159, 4888, 8556, 5014]
+Primal V,E: (5358, 11331), Dual V,E: (11331, 26617)
+FeatureInfo(no_node_features=2, no_edge_features=16, no_between_edge_features=4)
+Current task:   0%|          | 0/1 [00:00<?, ?it/s]Average training loss in episode 0: 6.038873160082991
+Average training loss in episode 1: 4.432974140947036
+Average training loss in episode 2: 4.049998170763089
+Average training loss in episode 3: 3.8572167223988316
+Average training loss in episode 4: 3.735880035392487
+Average training loss in episode 5: 3.6496849228005384
+Average training loss in episode 6: 3.5760366616986734
+Average training loss in episode 7: 3.5227424387115143
+Average training loss in episode 8: 3.4758889108731603
+Average training loss in episode 9: 3.4398039016275774
+Average training loss in episode 0: 5.804359889820795
+Average training loss in episode 1: 4.25386133872343
+Average training loss in episode 2: 3.9125563769050724
+Average training loss in episode 3: 3.743113968583102
+Average training loss in episode 4: 3.636373854144502
+Average training loss in episode 5: 3.559692478640962
+Average training loss in episode 6: 3.5006652010079904
+Average training loss in episode 7: 3.4557359979297573
+Average training loss in episode 8: 3.41531846305942
+Average training loss in episode 9: 3.387151982244207
+Average training loss in episode 0: 6.122035302509919
+Average training loss in episode 1: 4.454013877810694
+Average training loss in episode 2: 4.030855579929457
+Average training loss in episode 3: 3.826167561731286
+Average training loss in episode 4: 3.70016738492481
+Average training loss in episode 5: 3.608550002232441
+Average training loss in episode 6: 3.5419658261109452
+Average training loss in episode 7: 3.4860255046444046
+Average training loss in episode 8: 3.438320945968944
+Average training loss in episode 9: 3.3985074613634394
+Average training loss in episode 0: 6.09917112081749
+Average training loss in episode 1: 4.46857512622907
+Average training loss in episode 2: 4.07778566482976
+Average training loss in episode 3: 3.8856217782141753
+Average training loss in episode 4: 3.761996599521426
+Average training loss in episode 5: 3.6734008970181584
+Average training loss in episode 6: 3.611132087628486
+Average training loss in episode 7: 3.556946517354217
+Average training loss in episode 8: 3.513555045944551
+Average training loss in episode 9: 3.4753344161075783
+Average training loss in episode 0: 6.519496837373596
+Average training loss in episode 1: 4.787289992880426
+Average training loss in episode 2: 4.330004930825523
+Average training loss in episode 3: 4.104168378845763
+Average training loss in episode 4: 3.9694499864104045
+Average training loss in episode 5: 3.8692027847411223
+Average training loss in episode 6: 3.796458444871955
+Average training loss in episode 7: 3.736927362766055
+Average training loss in episode 8: 3.6858776294065443
+Average training loss in episode 9: 3.648506873878985
+Average training loss in episode 0: 6.590598197931743
+Average training loss in episode 1: 4.807859154695964
+Average training loss in episode 2: 4.325319925395164
+Average training loss in episode 3: 4.095916639704731
+Average training loss in episode 4: 3.9540397521540607
+Average training loss in episode 5: 3.852545906167004
+Average training loss in episode 6: 3.7767563933167008
+Average training loss in episode 7: 3.7170207141512663
+Average training loss in episode 8: 3.666766883589286
+Average training loss in episode 9: 3.6272942799230967
+Average training loss in episode 0: 7.258534195014785
+Average training loss in episode 1: 5.42812208576097
+Average training loss in episode 2: 4.638181454568937
+Average training loss in episode 3: 4.289804261033706
+Average training loss in episode 4: 4.091742051240489
+Average training loss in episode 5: 3.952582821661596
+Average training loss in episode 6: 3.8510730467448577
+Average training loss in episode 7: 3.7704355650843837
+Average training loss in episode 8: 3.70818697056059
+Average training loss in episode 9: 3.650914016020232
+Average training loss in episode 0: 6.94049025108801
+Average training loss in episode 1: 5.572454390604852
+Average training loss in episode 2: 4.957493731330113
+Average training loss in episode 3: 4.645375187884378
+Average training loss in episode 4: 4.460943997235588
+Average training loss in episode 5: 4.334944559724291
+Average training loss in episode 6: 4.242986833193026
+Average training loss in episode 7: 4.176557857357994
+Average training loss in episode 8: 4.121445924866924
+Average training loss in episode 9: 4.068096282073806
+Average training loss in episode 0: 6.396881676510553
+Average training loss in episode 1: 4.690263901626207
+Average training loss in episode 2: 4.2583447763933
+Average training loss in episode 3: 4.050374268497551
+Average training loss in episode 4: 3.9208253026008606
+Average training loss in episode 5: 3.836685375943368
+Average training loss in episode 6: 3.7704442400300042
+Average training loss in episode 7: 3.716553443044589
+Average training loss in episode 8: 3.6780255700343223
+Average training loss in episode 9: 3.6405846255918894
+Average training loss in episode 0: 7.827953295154466
+Average training loss in episode 1: 6.849863156429312
+Average training loss in episode 2: 5.664685876988575
+Average training loss in episode 3: 5.054391539557862
+Average training loss in episode 4: 4.728906036740509
+Average training loss in episode 5: 4.52828131525556
+Average training loss in episode 6: 4.3894084929102695
+Average training loss in episode 7: 4.285273756111525
+Average training loss in episode 8: 4.202197704196635
+Average training loss in episode 9: 4.136878017562529
+Current task: 100%|██████████| 1/1 [3:48:45<00:00, 13725.31s/it]Current task: 100%|██████████| 1/1 [3:48:45<00:00, 13725.31s/it]

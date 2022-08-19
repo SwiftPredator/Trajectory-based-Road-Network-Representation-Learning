@@ -3,8 +3,14 @@ import pandas as pd
 from sklearn import linear_model, metrics
 from sklearn.neural_network import MLPRegressor
 
-from . import (DestinationPrediciton, MeanSpeedRegTask, NextLocationPrediciton,
-               RoadTypeClfTask, RoutePlanning, TravelTimeEstimation)
+from . import (
+    DestinationPrediciton,
+    MeanSpeedRegTask,
+    NextLocationPrediciton,
+    RoadTypeClfTask,
+    RoutePlanning,
+    TravelTimeEstimation,
+)
 
 
 # index is correct
@@ -69,7 +75,8 @@ def init_traveltime(args, traj_data, network, device, seed):
 
 # label index is right here;
 def init_meanspeed(args, network, seed):
-    tf = pd.read_csv("../datasets/trajectories/Porto/speed_features_unnormalized.csv")
+    city = args["city"]
+    tf = pd.read_csv(f"../datasets/trajectories/{city}/speed_features_unnormalized.csv")
     tf.set_index(["u", "v", "key"], inplace=True)
     map_id = {j: i for i, j in enumerate(network.line_graph.nodes)}
     tf["idx"] = tf.index.map(map_id)
