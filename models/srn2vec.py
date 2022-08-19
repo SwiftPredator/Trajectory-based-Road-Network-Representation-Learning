@@ -83,6 +83,7 @@ class SRN2VecModel(Model):
         number_negative: int = 7,
         save_batch_size=128,
         file_path=".",
+        city="porto"
     ):
         """
         Generates the dataset like described in the corresponding paper. Since this needs alot of ram we use a batching approach.
@@ -93,7 +94,7 @@ class SRN2VecModel(Model):
             save_batch_size (int, optional): how many shortest paths to process between each save. Defaults to 128.
             file_path (str, optional): path where the dataset should be saved. Defaults to ".".
         """
-        save_path = os.path.join(file_path, "srn2vec-traindata.json")
+        save_path = os.path.join(file_path, f"srn2vec-traindata-{city}.json")
         paths = self.generate_shortest_paths(
             self.network.line_graph, n_shortest_paths=n_shortest_paths
         )

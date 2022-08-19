@@ -26,12 +26,13 @@ class HRNRModel(Model):
         data_path=None,
         emb_dim=128,
         remove_highway_label=False,
+        city="porto",
     ):
         self.network = network
         self.device = device
         self.data = data
         self.remove_highway_label = remove_highway_label
-        self.get_data(path=data_path)
+        self.get_data(path=data_path, city=city)
 
         self.model = GraphEncoderTL(
             self.struct_assign, self.fnc_assign, self.struct_adj, self.device
@@ -74,11 +75,11 @@ class HRNRModel(Model):
 
         return pos_loss + neg_loss
 
-    def get_data(self, path: str):
+    def get_data(self, path: str, city):
         struct_assign = pickle.load(
-            open(os.path.join(path, "struct_assign_porto"), "rb")
+            open(os.path.join(path, f"struct_assign_{city}"), "rb")
         )
-        fnc_assign = pickle.load(open(os.path.join(path, "fnc_assign_porto"), "rb"))
+        fnc_assign = pickle.load(open(os.path.join(path, f"fnc_assign_{city}"), "rb"))
 
         struct_assign = torch.tensor(
             struct_assign, dtype=torch.float, device=self.device
@@ -174,13 +175,13 @@ class GraphEncoderTL(nn.Module):
     def __init__(self, struct_assign, fnc_assign, struct_adj, device):
         super(GraphEncoderTL, self).__init__()
         # hyperparameters from original paper
-        node_num = 16000
+        node_num = 30000
         node_dims = 32
-        type_num = 20
+        type_num = 20  # 20 for porto
         type_dims = 32
-        length_num = 2200
+        length_num = 16836  # 2200 for porto
         length_dims = 32
-        lane_num = 6
+        lane_num = 30  # 6 for porto
         lane_dims = 32
         self.gnn_layers = 1
 

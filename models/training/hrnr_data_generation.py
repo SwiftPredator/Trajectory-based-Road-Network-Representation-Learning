@@ -34,8 +34,8 @@ from tqdm import tqdm
 def create_adj(network):
     # create needed data to run hrnr encoding model
     adj = to_numpy_matrix(network.line_graph)
-    adj = np.hstack([adj, np.zeros(shape=(adj.shape[0], 16000 - adj.shape[1]))])
-    adj = np.vstack([adj, np.zeros(shape=(16000 - adj.shape[0], adj.shape[1]))])
+    adj = np.hstack([adj, np.zeros(shape=(adj.shape[0], 30000 - adj.shape[1]))])
+    adj = np.vstack([adj, np.zeros(shape=(30000 - adj.shape[0], adj.shape[1]))])
     return adj
 
 
@@ -78,7 +78,7 @@ def create_spectral_cluster(adj):
 def create_tadj(network, trajectory):
     traj = trajectory.df["cpath"]
     skips = 5
-    tadj = [[0 for j in range(16000)] for i in range(16000)]
+    tadj = [[0 for j in range(30000)] for i in range(30000)]
     # create fid to node id mapping
     map = {}
     nodes = list(network.line_graph.nodes)
@@ -99,9 +99,10 @@ def get_data(network, trajectory, load_path=None, remove_highway_label=False):
     adj = create_adj(network)
     node_features = create_features(network, remove_highway_label=remove_highway_label)
     sp_labels = create_spectral_cluster(adj)
+    # sp_labels = np.eye(30000, 300)
 
     node_features = node_features.tolist()
-    while len(node_features) < 16000:
+    while len(node_features) < 30000:
         node_features.append(["0", "0", "0", "0"])
     node_features = np.array(node_features)
 
@@ -118,7 +119,7 @@ def get_data(network, trajectory, load_path=None, remove_highway_label=False):
     return adj, node_features, sp_labels, t_adj
 
 
-def train_struct_cmt_custom(adj, features, sp_label):
+def train_struct_cmt_custom(adj, features, sp_label, city):
     hparams = dict_to_object(beijing_hparams)
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
     hparams.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -168,7 +169,7 @@ def train_struct_cmt_custom(adj, features, sp_label):
         model_optimizer.step()
         if i % 50 == 0:
             print(ce_loss.item())
-            pickle.dump(main_assign.tolist(), open("struct_assign_porto", "wb"))
+            pickle.dump(main_assign.tolist(), open(f"struct_assign_{city}", "wb"))
             # torch.save(
             #     gae_model.state_dict(),
             #     "/data/wuning/NTLR/beijing/model/gae.model_" + str(i),
@@ -176,7 +177,7 @@ def train_struct_cmt_custom(adj, features, sp_label):
 
 
 def train_fnc_cmt_rst_custom(
-    adj, features, struct_assign, t_adj
+    adj, features, struct_assign, t_adj, city
 ):  # train fnc by reconstruction
     hparams = dict_to_object(beijing_hparams)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
@@ -248,6 +249,6 @@ def train_fnc_cmt_rst_custom(
             # )
             pickle.dump(
                 g2t_model.fnc_assign.tolist(),
-                open("fnc_assign_porto", "wb"),
+                open(f"fnc_assign_{city}", "wb"),
             )
             count += 1

@@ -277,10 +277,10 @@ def generate_required_city_graph(city_name, network, remove_highway_label=False)
     primal_graph = G
     dual_graph = D
 
-    X_V = nd.array(X_V_np, ctx=gpu(1))
-    X_E = nd.array(X_E_np, ctx=gpu(1))
-    X_B = nd.array(X_B_np, ctx=gpu(1))
-    y = nd.array(y_np, ctx=gpu(1))
+    X_V = nd.array(X_V_np, ctx=gpu(2))
+    X_E = nd.array(X_E_np, ctx=gpu(2))
+    X_B = nd.array(X_B_np, ctx=gpu(2))
+    y = nd.array(y_np, ctx=gpu(2))
 
     rfncity = RFNCity(city_name, primal_graph, dual_graph)
     rfncity.set_features(X_V, X_E, X_B, y)
@@ -420,8 +420,8 @@ def mask_neighborhoods(neighborhoods_list, is_dual=False):
     max_no_neighbors = max(len(n) for n in neighborhoods_list) if not is_dual else 1
     shape = (len(neighborhoods_list), max_no_neighbors)
 
-    neighborhoods_array = nd.zeros(shape=shape, dtype=np.int32, ctx=gpu(1))
-    mask = nd.zeros(shape=shape, ctx=gpu(1))
+    neighborhoods_array = nd.zeros(shape=shape, dtype=np.int32, ctx=gpu(2))
+    mask = nd.zeros(shape=shape, ctx=gpu(2))
 
     for idx, neighborhood in enumerate(neighborhoods_list):
         neighborhood_size = len(neighborhood)

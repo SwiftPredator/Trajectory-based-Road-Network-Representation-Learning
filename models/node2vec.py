@@ -16,6 +16,7 @@ class Node2VecModel(Model):
         walk_length=30,
         walks_per_node=25,
         context_size=5,
+        negative_samples=3,
         q=1,
         p=1,
     ):
@@ -25,7 +26,7 @@ class Node2VecModel(Model):
             walk_length=walk_length,
             context_size=context_size,
             walks_per_node=walks_per_node,
-            num_negative_samples=10,
+            num_negative_samples=negative_samples,
             p=p,
             q=q,
             sparse=True,

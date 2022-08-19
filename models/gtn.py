@@ -506,7 +506,7 @@ class Transformer(nn.Module):
             [Block(emb_dim, hidden_dim, nheads) for _ in range(nlayers)]
         )
 
-    def forward(self, x, mask):
+    def forward(self, x, mask=None):
         h = self.fc(self.embed(x))
         for block in self.blocks:
             h = block(h, mask)

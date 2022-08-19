@@ -17,11 +17,16 @@ from models import SRN2VecModel
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+city = "sf"
 network = RoadNetwork()
-network.load("../../osm_data/porto")
+network.load(f"../../osm_data/{city}")
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = SRN2VecModel(None, device, network)
 model.generate_data(
-    n_shortest_paths=1280, number_negative=7, window_size=900, save_batch_size=32
-) # paras from paper
+    n_shortest_paths=1280,
+    number_negative=7,
+    window_size=900,
+    save_batch_size=16,
+    city=city,
+)  # paras from paper

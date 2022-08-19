@@ -1072,6 +1072,7 @@ class GraphAutoencoder(Module):
         #     length_feature.shape,
         #     node_feature.shape,
         # )
+        # print(length_feature, self.length_emb_layer.shape)
         node_emb = self.node_emb_layer(node_feature)
         type_emb = self.type_emb_layer(type_feature)
         length_emb = self.length_emb_layer(length_feature)
