@@ -26,19 +26,19 @@ from tasks.task_loader import *
 
 model_info = {
     "gtn": {
-        "path": "../models/model_states/gtn/ablation/model_base_concat.pt",
+        "path": "../models/model_states/gtn/model_noroad.pt",
         "dim": 256,
     },
     "gtn_t": {
-        "path": "../models/model_states/gtn/ablation/model_base_only_trans.pt",
-        "dim": 128,
+        "path": "../models/model_states/gtn/ablation/model_base_ablation_None_seed_69.pt",
+        "dim": 256,
     },
     "gtn_gcn": {
-        "path": "../models/model_states/gtn/ablation/model_base_gae.pt",
+        "path": "../models/model_states/gtn/ablation/model_noroad_ablation_gae_seed_69.pt",
         "dim": 256,
     },
     "gtn_dw": {
-        "path": "../models/model_states/gtn/ablation/model_base_dw.pt",
+        "path": "../models/model_states/gtn/ablation/model_noroad_ablation_dw_seed_69.pt",
         "dim": 256,
     },
 }
@@ -49,9 +49,9 @@ def init_gtn_variant(name, data, device, network):
         data,
         device,
         network,
-        batch_size=32,
+        batch_size=512,
         emb_dim=model_info[name]["dim"],
-        hidden_dim=model_info[name]["dim"],
+        hidden_dim=512,
     )
     gtn.load_model(model_info[name]["path"])
 
@@ -127,13 +127,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--tasks", help="Tasks to evaluate on", required=True, type=str
     )
-    parser.add_argument(
-        "-s",
-        "--speed",
-        help="Include speed features (1 or 0)",
-        type=int,
-        default=0,
-    )
+    # parser.add_argument(
+    #     "-s",
+    #     "--speed",
+    #     help="Include speed features (1 or 0)",
+    #     type=int,
+    #     default=0,
+    # )
     parser.add_argument(
         "-p",
         "--path",
@@ -159,8 +159,15 @@ if __name__ == "__main__":
         type=str,
     )
 
+    parser.add_argument(
+        "-c",
+        "--city",
+        help="trajectory dataset to evaluate on",
+        type=str,
+        default="porto",
+    )  # sf, porto or hannover
+
     args = vars(parser.parse_args())
 
-    network, trajectory, data = generate_dataset(args)
-    _, test = train_test_split(trajectory, test_size=0.3, random_state=69)
+    network, test, data = generate_dataset(args, seed=69)
     ablation(args, data, network, test)
