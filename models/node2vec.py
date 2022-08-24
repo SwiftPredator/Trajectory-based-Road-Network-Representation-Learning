@@ -16,7 +16,7 @@ class Node2VecModel(Model):
         walk_length=30,
         walks_per_node=25,
         context_size=5,
-        negative_samples=3,
+        negative_samples=7,
         q=1,
         p=1,
     ):
