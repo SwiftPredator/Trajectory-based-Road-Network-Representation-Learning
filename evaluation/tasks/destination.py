@@ -61,7 +61,7 @@ class DestinationPrediciton(Task):
     def evaluate(
         self, emb: Union[np.ndarray, nn.Module], coord_sys: str = "EPSG:3763"
     ):  # porto coord
-        assert type(emb) == np.ndarray or isinstance(emb, nn.Module)
+        # assert type(emb) == np.ndarray or isinstance(emb, nn.Module)
 
         model = DP_LSTM(
             out_dim=len(
@@ -76,9 +76,9 @@ class DestinationPrediciton(Task):
             #         ).centroid,  # portugal specific
             #     )
             # ),
-            emb_dim=emb.shape[1]
-            if type(emb) == np.ndarray
-            else emb.embed.tok_embed.weight.shape[1],
+            emb_dim=emb.shape[1],
+            # if type(emb) == np.ndarray
+            # else emb.embed.tok_embed.weight.shape[1]
             batch_size=self.batch_size,
         )
 
@@ -220,17 +220,17 @@ class DP_LSTM(nn.Module):
 
     def forward(self, x, lengths):
         batch_size, seq_len, _ = x.size()
-        # self.hidden = self.init_hidden(batch_size=batch_size)
+        self.hidden = self.init_hidden(batch_size=batch_size)
 
-        # x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
+        x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
 
-        # x, _ = self.encoder(x)
+        x, _ = self.encoder(x)
 
-        # x, plengths = torch.nn.utils.rnn.pad_packed_sequence(
-        #     x, batch_first=True, padding_value=0
-        # )
+        x, plengths = torch.nn.utils.rnn.pad_packed_sequence(
+            x, batch_first=True, padding_value=0
+        )
         x = x.contiguous()  # batch x seq x hidden
-        x = torch.sum(x, dim=1) / lengths.float()
+        # x = torch.sum(x, dim=1) / lengths.float()
         # x = x.view(-1, x.shape[2])
         x = torch.stack(
             [x[b, plengths[b] - 1] for b in range(batch_size)]
@@ -245,24 +245,24 @@ class DP_LSTM(nn.Module):
         for e in tqdm(range(epochs)):
             total_loss = 0
             for X, y, lengths, mask, map in tqdm(loader):
-                if type(emb) == np.ndarray:
-                    emb_batch = self.get_embedding(emb, X.clone(), mask, map)
-                    emb_batch = emb_batch.to(self.device)
-                else:
-                    # emb_batch = emb(X.clone().to(self.device), mask.to(self.device))
-                    # emb_batch = torch.tensor([]).to(self.device)
-                    emb_batch = torch.zeros(
-                        (X.shape[0], X.shape[1], emb.embed.tok_embed.weight.shape[1])
-                    ).to(self.device)
-                    tx = X.clone()
-                    for i, seq in enumerate(tx):
-                        emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
-                        tx[i, mask[i]] = torch.tensor(emb_ids, dtype=int)
-                        # emb_ids = torch.tensor(emb_ids).unsqueeze(0).to(self.device)
+                # if type(emb) == np.ndarray:
+                emb_batch = self.get_embedding(emb, X.clone(), mask, map)
+                emb_batch = emb_batch.to(self.device)
+                # else:
+                #     # emb_batch = emb(X.clone().to(self.device), mask.to(self.device))
+                #     # emb_batch = torch.tensor([]).to(self.device)
+                #     emb_batch = torch.zeros(
+                #         (X.shape[0], X.shape[1], emb.embed.tok_embed.weight.shape[1])
+                #     ).to(self.device)
+                #     tx = X.clone()
+                #     for i, seq in enumerate(tx):
+                #         emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
+                #         tx[i, mask[i]] = torch.tensor(emb_ids, dtype=int)
+                #         # emb_ids = torch.tensor(emb_ids).unsqueeze(0).to(self.device)
 
-                    emb_batch = emb(tx.to(self.device), mask.to(self.device))
+                #     emb_batch = emb(tx.to(self.device), mask.to(self.device))
 
-                    # print(emb_batch.shape)
+                # print(emb_batch.shape)
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths)
 
@@ -279,20 +279,20 @@ class DP_LSTM(nn.Module):
             self.eval()
             yhs, ys = [], []
             for X, y, lengths, mask, map in loader:
-                if type(emb) == np.ndarray:
-                    emb_batch = self.get_embedding(emb, X.clone(), mask, map)
-                    emb_batch = emb_batch.to(self.device)
-                else:
-                    # emb_batch = torch.zeros(
-                    #     (X.shape[0], X.shape[1], emb.embed.tok_embed.weight.shape[1])
-                    # ).to(self.device)
-                    tx = X.clone()
-                    for i, seq in enumerate(tx):
-                        emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
-                        tx[i, mask[i]] = torch.tensor(emb_ids, dtype=int)
-                        # emb_ids = torch.tensor(emb_ids).unsqueeze(0).to(self.device)
+                # if type(emb) == np.ndarray:
+                emb_batch = self.get_embedding(emb, X.clone(), mask, map)
+                emb_batch = emb_batch.to(self.device)
+                # else:
+                #     # emb_batch = torch.zeros(
+                #     #     (X.shape[0], X.shape[1], emb.embed.tok_embed.weight.shape[1])
+                #     # ).to(self.device)
+                #     tx = X.clone()
+                #     for i, seq in enumerate(tx):
+                #         emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
+                #         tx[i, mask[i]] = torch.tensor(emb_ids, dtype=int)
+                #         # emb_ids = torch.tensor(emb_ids).unsqueeze(0).to(self.device)
 
-                    emb_batch = emb(tx.to(self.device), mask.to(self.device))
+                #     emb_batch = emb(tx.to(self.device), mask.to(self.device))
 
                 y = y.to(self.device)
                 yh = self.soft(self.forward(emb_batch, lengths)).argmax(dim=1)

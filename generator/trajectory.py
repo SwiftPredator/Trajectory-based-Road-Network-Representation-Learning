@@ -131,3 +131,6 @@ class Trajectory:
         # )
 
         return rdf
+
+    def generate_time_trajectory_data(time_interval_minutes: int):
+        ...

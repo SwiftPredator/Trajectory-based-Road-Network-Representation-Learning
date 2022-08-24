@@ -30,7 +30,7 @@ city = "sf"
 network = RoadNetwork()
 network.load(f"../../osm_data/{city}")
 traj_train = pd.read_pickle(
-    f"../../datasets/trajectories/{city}/traj_train_test_split/train_69.pkl"
+    f"../../datasets/trajectories/{city}/traj_train_test_split/train_420.pkl"
 )
 traj_train["seg_seq"] = traj_train["seg_seq"].map(np.array)
 
@@ -48,11 +48,13 @@ data_rest = network.generate_road_segment_pyg_dataset(
     include_coords=True, traj_data=None, dataset=city
 )
 
-adj = np.loadtxt("./gtn_precalc_adj/traj_adj_k_2.gz")
-adj_sample = np.loadtxt("./gtn_precalc_adj/traj_adj_k_1_False_no_selfloops_smoothed.gz")
+adj = np.loadtxt(f"./gtn_precalc_adj/traj_adj_k_2_{city}.gz")
+adj_sample = np.loadtxt(
+    f"./gtn_precalc_adj/traj_adj_k_1_False_no_selfloops_smoothed_{city}.gz"
+)
 
 # create init emb from gtc and traj2vec concat
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 dw = Node2VecModel(data_rest, device=device, q=1, p=1)
 dw.load_model(f"../model_states/deepwalk/model_base_{city}.pt")
 gae = GAEModel(data_rest, device=device, encoder=GCNEncoder, emb_dim=128)
@@ -84,5 +86,5 @@ model.train(epochs=20)
 
 torch.save(
     model.model.state_dict(),
-    os.path.join("../model_states/gtn/" + "/model_base_sf_seed_69.pt"),
+    os.path.join("../model_states/gtn/" + "/model_base_sf_seed_420.pt"),
 )

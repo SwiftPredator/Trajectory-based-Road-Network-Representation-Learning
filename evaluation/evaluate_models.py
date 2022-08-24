@@ -258,8 +258,9 @@ def evaluate_model(args, data, network, trajectory, seed):
     if "route" in tasks:
         eva.register_task("route", init_route(args, trajectory, network, device, seed))
 
+    city = args["city"]
     adj = np.loadtxt(
-        "../models/training/gtn_precalc_adj/traj_adj_k_2.gz"
+        f"../models/training/gtn_precalc_adj/traj_adj_k_2_{city}.gz"
     )  # change to desired path
     for m in models:
         model, margs, model_path = model_map[m]
@@ -310,7 +311,7 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m == "traj2vec":
             margs["network"] = network
             margs["adj"] = np.loadtxt(
-                "../models/training/gtn_precalc_adj/traj_adj_k_1.gz"
+                f"../models/training/gtn_precalc_adj/traj_adj_k_1_{city}.gz"
             )
 
         if m in ["rfn", "hrnr", "srn2vec"] and args["drop_label"] == "highway_enc":
