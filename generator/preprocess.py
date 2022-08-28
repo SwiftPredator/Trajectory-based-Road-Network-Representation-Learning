@@ -77,7 +77,9 @@ def remove_outlier_trajectories(
     df: pd.DataFrame, min_edges_traversed: int = 3, max_speed: float = 1e1
 ) -> pd.DataFrame:
     df.dropna(inplace=True)
-    df["speed"] = df["speed"].swifter.apply(literal_eval)
+    df["speed"] = df["speed"].apply(
+        lambda x: np.array(x.split(","), dtype=float).tolist()
+    )
     df["speed_mean"] = df["speed"].swifter.apply(np.mean)
     df["cpath"] = df["cpath"].swifter.apply(literal_eval)
     # remove mean speed <= 0 since mostly standing trajectories

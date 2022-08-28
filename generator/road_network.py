@@ -231,7 +231,11 @@ class RoadNetwork:
             )
         )
         df["tunnel"] = (
-            df["tunnel"].fillna(0).replace(["yes", "building_passage", "culvert"], 1)
+            df["tunnel"]
+            .fillna(0)
+            .replace(
+                ["yes", "building_passage", "culvert", "['yes', 'building_passage']"], 1
+            )
         )
         if dataset == "sf":
             df["reversed"] = (
@@ -245,8 +249,8 @@ class RoadNetwork:
             .fillna(0)
             .replace(["roundabout", "circular", "cloverleaf", "jughandle"], 1)
         )
-        df["lanes"] = df["lanes"].str.extract(r"(\w+)")
-        df["maxspeed"] = df["maxspeed"].str.extract(r"(\w+)")
+        df["lanes"] = df["lanes"].str.extract(r"(\d+)")
+        df["maxspeed"] = df["maxspeed"].str.extract(r"(\d+)")
 
         # normalize continiuos features
         df["length"] = (df["length"] - df["length"].min()) / (

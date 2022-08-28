@@ -75,6 +75,7 @@ class GTNModel(Model):
         )
         if init_emb is not None:
             self.model.init_token_embed(init_emb)
+        # self.model = nn.DataParallel(self.model)
         self.model = self.model.to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.0005)  # 0.0005
         self.device = device

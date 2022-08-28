@@ -34,8 +34,8 @@ class Trajectory:
         self.df["speed"] = self.df["speed"].swifter.apply(
             lambda x: np.fromstring(
                 x.replace("\n", "")
-                .replace("(", "")
-                .replace("(", "")
+                .replace("[", "")
+                .replace("]", "")
                 .replace("  ", " "),
                 sep=",",
             )  # for porto this was [ ] and " " as seperator, but should also work now for porto like this
@@ -91,34 +91,7 @@ class Trajectory:
         # little bit complicater
 
         # key: edge_id, value: tuple[speed, count]
-        cpaths = self.df["cpath"].values
-        opaths = self.df["opath"].values
-        speeds = self.df["speed"].values
-        speed_counter = Counter()
-        count_counter = Counter()
-
-        for opath, cpath, speed in tqdm(zip(opaths, cpaths, speeds)):
-            last_lidx, last_ridx = 0, 0
-            for l, r, s in zip(opath[0::1], opath[1::1], speed):
-                # print(l, r, s)
-                if s * 111000 * 3.6 >= 200:  # check unrealistic speed values
-                    continue
-
-                lidxs, ridxs = np.where(cpath == l)[0], np.where(cpath == r)[0]
-                lidx, ridx = (
-                    lidxs[lidxs >= last_lidx][0],
-                    ridxs[ridxs >= last_ridx][0],
-                )
-                assert lidx <= ridx
-                traversed_edges = cpath[lidx : ridx + 1]
-                # print(traversed_edges)
-                speed_counter.update(
-                    dict(zip(traversed_edges, [s] * len(traversed_edges)))
-                )
-                count_counter.update(
-                    dict(zip(traversed_edges, [1] * len(traversed_edges)))
-                )
-                last_lidx, last_ridx = lidx, ridx
+        speed_counter, count_counter = Trajectory.calc_avg_speed(self.df)
         rdf["avg_speed"] = rdf.id.map(
             {
                 k: (float(speed_counter[k]) / count_counter[k]) * 111000 * 3.6
@@ -132,5 +105,39 @@ class Trajectory:
 
         return rdf
 
-    def generate_time_trajectory_data(time_interval_minutes: int):
+    @staticmethod
+    def calc_avg_speed(data: pd.DataFrame):
+        cpaths = data["cpath"].values
+        opaths = data["opath"].values
+        speeds = data["speed"].values
+        speed_counter = Counter()
+        count_counter = Counter()
+
+        for opath, cpath, speed in tqdm(zip(opaths, cpaths, speeds)):
+            last_lidx, last_ridx = 0, 0
+            for l, r, s in zip(opath[0::1], opath[1::1], speed):
+                # print(l, r, s)
+                # print(cpath)
+                if s * 111000 * 3.6 >= 200:  # check unrealistic speed values
+                    continue
+
+                lidxs, ridxs = np.where(cpath == l)[0], np.where(cpath == r)[0]
+                lidx = lidxs[lidxs >= last_lidx][0]
+                ridx = ridxs[(ridxs >= last_ridx) & (ridxs >= lidx)][0]
+
+                # print(last_lidx, lidx, last_ridx, ridx)
+                assert lidx <= ridx
+                traversed_edges = cpath[lidx : ridx + 1]
+                # print(traversed_edges)
+                speed_counter.update(
+                    dict(zip(traversed_edges, [s] * len(traversed_edges)))
+                )
+                count_counter.update(
+                    dict(zip(traversed_edges, [1] * len(traversed_edges)))
+                )
+                last_lidx, last_ridx = lidx, ridx
+
+        return speed_counter, count_counter
+
+    def generate_time_trajectory_data(self, time_interval_minutes: int):
         ...
