@@ -34,6 +34,7 @@ from models import (
 )
 
 from evaluation import Evaluation
+from tasks import ContextualEmbeddingPlugin
 from tasks.task_loader import *
 
 model_map = {
@@ -83,6 +84,7 @@ model_map = {
         "",
     ),
     "gtn": (GTNModel, {}, "../models/model_states/gtn/"),
+    "gtn-dynamic": (GTNModel, {}, "../models/model_states/gtn/"),
     "gtc": (GTCModel, {}, "../models/model_states/gtc/"),
     "traj2vec": (Traj2VecModel, {}, "../models/model_states/traj2vec"),
     "gaegcn": (
@@ -196,7 +198,7 @@ def get_model_path_for_task(base_path, tasks, model_name, seed, city):
             else os.path.join(base_path, f"model_noroad_{city}.params")
         )
 
-    if model_name == "gtn":
+    if model_name == "gtn" or model_name == "gtn-dynamic":
         return os.path.join(base_path, f"model_base_{city}_{seed}.pt")
 
     return (
@@ -303,7 +305,7 @@ def evaluate_model(args, data, network, trajectory, seed):
             data.x = None
             data = T.OneHotDegree(128)(data)
 
-        if m in ["gtn", "gtc"]:
+        if m in ["gtn", "gtc", "gtn-dynamic"]:
             margs["network"] = network
             margs["traj_data"] = trajectory
             # margs["adj"] = adj
@@ -324,7 +326,16 @@ def evaluate_model(args, data, network, trajectory, seed):
         model.load_model(
             path=get_model_path_for_task(model_path, tasks, m, seed, city=args["city"])
         )
-        eva.register_model(m, model)
+
+        targs = {}
+        if m == "gtn-dynamic":
+            print("adding plugin")
+            plugin = ContextualEmbeddingPlugin(
+                transformer=model.model.transformer, device=device
+            )
+            targs = {"plugin": plugin}
+
+        eva.register_model(m, model, targs)
 
     res = eva.run()
 
@@ -345,6 +356,14 @@ if __name__ == "__main__":
         help="Epochs to train lstm for (time travel evaluation)",
         required=True,
         type=int,
+    )
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        help="Batch size for lstm training",
+        required=False,
+        type=int,
+        default=512,
     )
     parser.add_argument(
         "-s",

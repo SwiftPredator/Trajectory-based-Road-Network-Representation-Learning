@@ -52,9 +52,12 @@ class TravelTimeEstimation(Task):
             batch_size=batch_size,
         )
 
-    def evaluate(self, emb: np.ndarray):
+    def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):
         model = TTE_LSTM(
-            device=self.device, emb_dim=emb.shape[1], batch_size=self.batch_size
+            device=self.device,
+            emb_dim=emb.shape[1],
+            batch_size=self.batch_size,
+            plugin=plugin,
         )
 
         # train on x trajectories
@@ -144,11 +147,14 @@ class TTE_LSTM(nn.Module):
         hidden_units: int = 128,
         layers: int = 2,
         batch_size: int = 128,
+        plugin=None,
     ):
         super(TTE_LSTM, self).__init__()
         self.encoder = nn.LSTM(
             emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
+        if plugin is not None:
+            hidden_units = hidden_units * 2
         self.decoder = nn.Sequential(
             nn.Linear(hidden_units, hidden_units * 2),
             nn.ReLU(),
@@ -162,6 +168,7 @@ class TTE_LSTM(nn.Module):
         self.device = device
         self.loss = nn.MSELoss()
         self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.plugin = plugin
 
         self.encoder.to(device)
         self.decoder.to(device)
@@ -183,6 +190,9 @@ class TTE_LSTM(nn.Module):
             [x[b, plengths[b] - 1] for b in range(batch_size)]
         )  # get last valid item per batch batch x hidden
 
+        if self.plugin is not None:
+            x = self.plugin(x)
+
         yh = self.decoder(x)
 
         return yh  # (batch x 1)
@@ -194,6 +204,10 @@ class TTE_LSTM(nn.Module):
             for X, y, lengths, mask, map in loader:
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
+
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
+
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths)
                 loss = self.loss(yh.squeeze(), y)
@@ -212,6 +226,10 @@ class TTE_LSTM(nn.Module):
             for X, y, lengths, mask, map in loader:
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
+
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
+
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths)
                 yhs.extend(yh.tolist())

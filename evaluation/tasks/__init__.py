@@ -1,3 +1,4 @@
+from .contextual_plugin import ContextualEmbeddingPlugin
 from .destination import DestinationPrediciton
 from .mean_speed import MeanSpeedRegTask
 from .next_location import NextLocationPrediciton

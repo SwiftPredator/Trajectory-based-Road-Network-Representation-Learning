@@ -59,7 +59,7 @@ class DestinationPrediciton(Task):
         )
 
     def evaluate(
-        self, emb: Union[np.ndarray, nn.Module], coord_sys: str = "EPSG:3763"
+        self, emb: Union[np.ndarray, nn.Module], plugin: nn.Module = None
     ):  # porto coord
         # assert type(emb) == np.ndarray or isinstance(emb, nn.Module)
 
@@ -80,6 +80,7 @@ class DestinationPrediciton(Task):
             # if type(emb) == np.ndarray
             # else emb.embed.tok_embed.weight.shape[1]
             batch_size=self.batch_size,
+            plugin=plugin,
         )
 
         # train on x trajectories
@@ -191,15 +192,18 @@ class DP_LSTM(nn.Module):
         out_dim: int,
         device,
         emb_dim: int = 128,
-        hidden_units: int = 128,
+        hidden_units: int = 256,
         layers: int = 2,
         batch_size: int = 128,
+        plugin=None,
     ):
         super(DP_LSTM, self).__init__()
         print(emb_dim)
         self.encoder = nn.LSTM(
             emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
+        if plugin is not None:
+            hidden_units = hidden_units * 2
         self.decoder = nn.Sequential(
             nn.Linear(hidden_units, hidden_units * 2),
             nn.ReLU(),
@@ -213,8 +217,9 @@ class DP_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.CrossEntropyLoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.01)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
 
+        self.plugin = plugin
         self.encoder.to(device)
         self.decoder.to(device)
 
@@ -235,6 +240,9 @@ class DP_LSTM(nn.Module):
         x = torch.stack(
             [x[b, plengths[b] - 1] for b in range(batch_size)]
         )  # get last valid item per batch batch x hidden
+
+        if self.plugin is not None:
+            x = self.plugin(x)
 
         yh = self.decoder(x)
 
@@ -263,6 +271,8 @@ class DP_LSTM(nn.Module):
                 #     emb_batch = emb(tx.to(self.device), mask.to(self.device))
 
                 # print(emb_batch.shape)
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths)
 
@@ -293,6 +303,9 @@ class DP_LSTM(nn.Module):
                 #         # emb_ids = torch.tensor(emb_ids).unsqueeze(0).to(self.device)
 
                 #     emb_batch = emb(tx.to(self.device), mask.to(self.device))
+
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
 
                 y = y.to(self.device)
                 yh = self.soft(self.forward(emb_batch, lengths)).argmax(dim=1)

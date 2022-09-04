@@ -93,8 +93,8 @@ beijing_des_hparams = {
     "loc_pred_gnn_layer": 1,
     "alpha": 0.2,
     "dropout": 0.6,
-    "lane_num": 30,  # 6 for porto
-    "length_num": 16836,  # 220 for porto
+    "lane_num": 6,  # 30 for sf, ha
+    "length_num": 2200,  # 16836 for sf, ha
     "type_num": 20,  # 20 for porto
     "lane_dims": 32,
     "length_dims": 32,
@@ -147,8 +147,8 @@ beijing_route_hparams = {
     "loc_pred_gnn_layer": 1,
     "alpha": 0.2,
     "dropout": 0.6,
-    "lane_num": 30,  # 6 for porto
-    "length_num": 16836,  # 220 for porto
+    "lane_num": 6,  # 30 for sf, ha
+    "length_num": 2200,  # 16836 for sf, ha
     "type_num": 20,  # 20 for porto
     "lane_dims": 32,
     "length_dims": 32,
@@ -166,7 +166,7 @@ beijing_route_hparams = {
 beijing_hparams = {
     "hidden_dims": 608,
     "node_dims": 512,
-    "node_num": 30000,  # 16000 for porto
+    "node_num": 16000,  # 30000 for sf, ha
     "cmt_num": 200,
     "cmt_dims": 256,
     "struct_cmt_num": 300,
@@ -186,7 +186,7 @@ beijing_hparams = {
     "gru_layers": 1,
     "is_bigru": True,
     "state_num": 2,
-    "vocab_size": 30000,  # 16000 for porto
+    "vocab_size": 16000,  # 30000 for sf and ha
     "batch_size": 100,
     "device": 1,
     "use_cn_gnn": False,
@@ -201,8 +201,8 @@ beijing_hparams = {
     "loc_pred_gnn_layer": 1,
     "alpha": 0.2,
     "dropout": 0.6,
-    "lane_num": 30,  # 6 for porto
-    "length_num": 16836,  # 2200 for porto
+    "lane_num": 6,  # 30 for sf, ha
+    "length_num": 2200,  # 16836 for sf, ha
     "type_num": 20,  # 20 for porto
     "lane_dims": 32,
     "length_dims": 32,

@@ -3,14 +3,8 @@ import pandas as pd
 from sklearn import linear_model, metrics
 from sklearn.neural_network import MLPRegressor
 
-from . import (
-    DestinationPrediciton,
-    MeanSpeedRegTask,
-    NextLocationPrediciton,
-    RoadTypeClfTask,
-    RoutePlanning,
-    TravelTimeEstimation,
-)
+from . import (DestinationPrediciton, MeanSpeedRegTask, NextLocationPrediciton,
+               RoadTypeClfTask, RoutePlanning, TravelTimeEstimation)
 
 
 # index is correct
@@ -53,7 +47,7 @@ def init_traveltime(args, traj_data, network, device, seed):
         traj_dataset=traj_data,
         network=network,
         device=device,
-        batch_size=512,
+        batch_size=args["batch_size"],
         epochs=args["epochs"],
         seed=seed,
     )
@@ -106,7 +100,7 @@ def init_nextlocation(args, traj_data, network, device, seed):
         traj_dataset=traj_data,
         network=network,
         device=device,
-        batch_size=512,
+        batch_size=args["batch_size"],
         epochs=args["epochs"],
         seed=seed,
     )
@@ -125,7 +119,7 @@ def init_destination(args, traj_data, network, device, seed):
         traj_dataset=traj_data,
         network=network,
         device=device,
-        batch_size=512,
+        batch_size=args["batch_size"],
         epochs=args["epochs"],
         seed=seed,
     )

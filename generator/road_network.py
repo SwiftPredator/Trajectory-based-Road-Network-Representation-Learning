@@ -10,6 +10,7 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 import swifter
+from shapely import wkt
 from shapely.geometry import LineString
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -23,7 +24,8 @@ except ImportError:
 
 try:
     import fmm
-    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
+    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
+                     STMATCHConfig)
 except ImportError:
     ...
 
@@ -93,6 +95,30 @@ class RoadNetwork:
         self.gdf_edges["highway_enc"] = le.fit_transform(self.gdf_edges["highway"])
 
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
+
+    def load_hanover_temporal(self):
+        df = pd.read_csv(
+            "../datasets/trajectories/hanover/temporal/hannover_streetgraph.csv"
+        )
+        df["geometry"] = df["geometry"].swifter.apply(wkt.loads)
+        self.gdf_edges = gpd.GeoDataFrame(df, geometry="geometry")
+        self.gdf_edges.rename(
+            columns={"source": "u", "target": "v", "type": "highway"}, inplace=True
+        )
+        self.gdf_edges["key"] = 0
+
+        G = nx.from_pandas_edgelist(
+            self.gdf_edges, "u", "v", True, nx.MultiDiGraph, "key"
+        )
+        sG = [
+            G.subgraph(c)
+            for c in sorted(nx.weakly_connected_components(G), key=len, reverse=True)
+        ][0]
+        self.G = sG
+
+        le = LabelEncoder()
+        self.gdf_edges["highway_enc"] = le.fit_transform(self.gdf_edges["highway"])
+        self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
 
     def fmm_trajectorie_mapping(
         self, network_file: str, input_file: str, output_file: str
@@ -186,8 +212,6 @@ class RoadNetwork:
             # incorperate trajectorie data in form of speed and volume
             traj_data.drop(["id"], axis=1, inplace=True)
             df = df.join(traj_data)
-
-        # print(df.head()
 
         if include_coords:
             df["x"] = df.geometry.centroid.x / 100  # normalize to -2/2
@@ -302,6 +326,15 @@ class RoadNetwork:
         data = transform(data)
 
         return data
+
+    def generate_temporal_pyg_dataset(self, temporal_data, include_coords=False):
+        """
+        Generate temporal dataset in shape NxTxF
+        Args:
+            temporal_data (_type_): _description_
+            include_coords (bool, optional): _description_. Defaults to False.
+        """
+        # temp data by edge id
 
     def visualize():
         ...

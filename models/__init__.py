@@ -10,3 +10,4 @@ from .srn2vec import SRN2VecModel
 from .toast import Toast
 from .traj2vec import Traj2VecModel
 from .random import RandomModel
+from tlstm import TemporalLSTMModel

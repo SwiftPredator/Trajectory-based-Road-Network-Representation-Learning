@@ -54,7 +54,7 @@ class NextLocationPrediciton(Task):
             batch_size=self.batch_size,
         )
 
-    def evaluate(self, emb: np.ndarray, coord_sys: str = "EPSG:3763"):  # porto coord
+    def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):  # porto coord
         model = NL_LSTM(
             out_dim=len(
                 self.network.line_graph.nodes
@@ -70,6 +70,7 @@ class NextLocationPrediciton(Task):
             # ),
             emb_dim=emb.shape[1],
             batch_size=self.batch_size,
+            plugin=plugin,
         )
 
         # train on x trajectories
@@ -224,11 +225,15 @@ class NL_LSTM(nn.Module):
         hidden_units: int = 128,
         layers: int = 2,
         batch_size: int = 128,
+        plugin=None,
     ):
         super(NL_LSTM, self).__init__()
         self.encoder = nn.LSTM(
             emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
+        if plugin is not None:
+            hidden_units = hidden_units * 2
+
         self.decoder = nn.Sequential(
             nn.Linear(hidden_units, hidden_units * 2),
             nn.ReLU(),
@@ -242,7 +247,8 @@ class NL_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.CrossEntropyLoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.01)
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.plugin = plugin
 
         self.encoder.to(device)
         self.decoder.to(device)
@@ -273,6 +279,9 @@ class NL_LSTM(nn.Module):
             [x[b, plengths[b] - 1] for b in range(batch_size)]
         )  # get last valid item per batch batch x hidden
 
+        if self.plugin is not None:
+            x = self.plugin(x)
+
         yh = self.decoder(x)
         if mode == "train":
             yh = self.masked_out(yh, neigh_masks)
@@ -286,6 +295,9 @@ class NL_LSTM(nn.Module):
             for X, y, neigh_masks, lengths, mask, map in tqdm(loader, leave=False):
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
+
                 y = y.to(self.device)
                 yh = self.forward(emb_batch, lengths, neigh_masks)
 
@@ -304,6 +316,10 @@ class NL_LSTM(nn.Module):
             for X, y, neigh_mask, lengths, mask, map in loader:
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
+
+                if self.plugin is not None:
+                    self.plugin.register_id_seq(X, mask, map, lengths)
+
                 y = y.to(self.device)
                 yh = self.soft(
                     self.forward(emb_batch, lengths, neigh_mask, mode="test")
