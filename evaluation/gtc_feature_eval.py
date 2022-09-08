@@ -71,7 +71,7 @@ def ablation(args, data_normal, data_util, data_speed, data_all, network, test):
         args["seed"] = seed
         args["epochs"] = 10
         tasks = [t for t in args["tasks"].split(",")]
-        adj = np.loadtxt("../models/training/gtn_precalc_adj/traj_adj_k_2.gz")
+        adj = np.loadtxt("../models/training/gtn_precalc_adj/traj_adj_k_2_porto.gz")
         eva = Evaluation()
 
         if "roadclf" in tasks:
@@ -107,7 +107,7 @@ def ablation(args, data_normal, data_util, data_speed, data_all, network, test):
             else:
                 model = init_gtc_variant(model_name, data_normal, device, network, adj)
 
-            eva.register_model(model_name, model)
+            eva.register_model(model_name, model, {})
 
         seed_results = eva.run()
 
@@ -130,12 +130,12 @@ def ablation(args, data_normal, data_util, data_speed, data_all, network, test):
         res.to_csv(path + "/" + name + ".csv")
 
 
-def generate_eval_datasets():
+def generate_eval_datasets(args):
     network = RoadNetwork()
     network.load("../osm_data/porto")
     drop_label = [args["drop_label"]] if args["drop_label"] is not None else []
     traj_features = pd.read_csv(
-        "../datasets/trajectories/Porto/speed_features_unnormalized.csv"
+        "../datasets/trajectories/porto/speed_features_unnormalized.csv"
     )
 
     traj_features.set_index(["u", "v", "key"], inplace=True)
@@ -154,21 +154,25 @@ def generate_eval_datasets():
             traj_data=None,
             include_coords=True,
             drop_labels=drop_label,
+            dataset=args["city"],
         ),
         network.generate_road_segment_pyg_dataset(
             traj_data=traj_features[["id", "util"]].copy(),
             include_coords=True,
             drop_labels=drop_label,
+            dataset=args["city"],
         ),
         network.generate_road_segment_pyg_dataset(
             traj_data=traj_features[["id", "avg_speed"]].copy(),
             include_coords=True,
             drop_labels=drop_label,
+            dataset=args["city"],
         ),
         network.generate_road_segment_pyg_dataset(
             traj_data=traj_features[["id", "util", "avg_speed"]].copy(),
             include_coords=True,
             drop_labels=drop_label,
+            dataset=args["city"],
         ),
     )
 
@@ -197,6 +201,8 @@ if __name__ == "__main__":
     )
 
     args = vars(parser.parse_args())
+    args["city"] = "porto"
+    args["batch_size"] = 512
     network, traj_test, _ = generate_dataset(args, 69)  # default seed
-    data_normal, data_util, data_speed, data_all = generate_eval_datasets()
+    data_normal, data_util, data_speed, data_all = generate_eval_datasets(args)
     ablation(args, data_normal, data_util, data_speed, data_all, network, traj_test)

@@ -24,7 +24,7 @@ from tasks.task_loader import *
 
 
 def evaluate_k(args, data, network, trajectory):
-    seeds = [42, 69, 88, 420, 1234, 99, 102, 73, 10, 28]
+    seeds = [42, 69, 88, 420, 1234]
     ks = [1, 2, 3, 4, 5, 6]
 
     torch.backends.cudnn.deterministic = True
@@ -33,12 +33,14 @@ def evaluate_k(args, data, network, trajectory):
     results = []
     # preload adja matrices
     adjas_bidir = [
-        np.loadtxt("../models/training/gtn_precalc_adj/traj_adj_k_{}.gz".format(k))
+        np.loadtxt(
+            "../models/training/gtn_precalc_adj/traj_adj_k_{}_porto.gz".format(k)
+        )
         for k in ks
     ]
     adjas_forward = [
         np.loadtxt(
-            "../models/training/gtn_precalc_adj/traj_adj_k_{}_False.gz".format(k)
+            "../models/training/gtn_precalc_adj/traj_adj_k_{}_False_porto.gz".format(k)
         )
         for k in ks
     ]
@@ -63,15 +65,18 @@ def evaluate_k(args, data, network, trajectory):
             eva.register_task("meanspeed", init_meanspeed(args, network, seed=seed))
         if "traveltime" in tasks:
             eva.register_task(
-                "traveltime", init_traveltime(args, traj_train, network, device, seed=seed)
+                "traveltime",
+                init_traveltime(args, traj_train, network, device, seed=seed),
             )
         if "nextlocation" in tasks:
             eva.register_task(
-                "nextlocation", init_nextlocation(args, traj_train, network, device, seed=seed)
+                "nextlocation",
+                init_nextlocation(args, traj_train, network, device, seed=seed),
             )
         if "destination" in tasks:
             eva.register_task(
-                "destination", init_destination(args, traj_train, network, device, seed=seed)
+                "destination",
+                init_destination(args, traj_train, network, device, seed=seed),
             )
 
         for k in ks:
@@ -79,21 +84,19 @@ def evaluate_k(args, data, network, trajectory):
                 data,
                 device,
                 network,
-                traj_train,
                 adj=adjas_bidir[k - 1],
             )
             model_for = GTCModel(
                 data,
                 device,
                 network,
-                traj_train,
                 adj=adjas_forward[k - 1],
             )
             model_bi.train(epochs=5000)
             model_for.train(epochs=5000)
 
-            eva.register_model("gtn_k_{}_bidirectional".format(k), model_bi)
-            eva.register_model("gtn_k_{}_forward".format(k), model_for)
+            eva.register_model("gtn_k_{}_bidirectional".format(k), model_bi, {})
+            eva.register_model("gtn_k_{}_forward".format(k), model_for, {})
 
         seed_results = eva.run()
 
@@ -124,9 +127,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--speed",
-        help="Include speed features (1 or 0)",
-        type=int,
-        default=0,
+        help="Include speed features to include",
+        type=str,
     )
     parser.add_argument(
         "-p",
@@ -162,6 +164,8 @@ if __name__ == "__main__":
     )
 
     args = vars(parser.parse_args())
+    args["city"] = "porto"
+    args["batch_size"] = 512
 
-    network, trajectory, data = generate_dataset(args)
+    network, trajectory, data = generate_dataset(args, 69)  # test split for the dataset
     evaluate_k(args, data, network, trajectory)

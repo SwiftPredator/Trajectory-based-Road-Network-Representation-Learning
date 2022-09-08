@@ -226,17 +226,21 @@ class PositionalEncoding(nn.Module):
 
 class TrajectoryDataset(Dataset):
     def __init__(
-        self, trajs, network, traj_map, adj, util_data, seq_len=150, mask_ratio=0.25
+        self, trajs, network, traj_map, util_data, adj=None, seq_len=150, mask_ratio=0.25
     ):
         self.trajs = trajs
         self.network = network
         self.seq_len = seq_len
         self.mask_ratio = mask_ratio
         self.traj_map = traj_map
-        self.adj = adj
-        self.util_data = util_data.loc[
-            list(self.network.line_graph.nodes), "util"
-        ].to_list()
+        if adj is None:
+            self.adj = nx.to_numpy_array(self.network.line_graph)
+            np.fill_diagonal(self.adj, 0)
+        else:
+            self.adj = adj
+        # self.util_data = util_data.loc[
+        #     list(self.network.line_graph.nodes), "util"
+        # ].to_list()
 
     @staticmethod
     def traj_walk(adj, start, walks_per_node):

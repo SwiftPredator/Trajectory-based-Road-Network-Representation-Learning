@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import networkx as nx
+from torch_geometric.utils import from_networkx
 
 
 def generate_trajid_to_nodeid(network):
@@ -11,8 +13,23 @@ def generate_trajid_to_nodeid(network):
     return map
 
 
+def transform_data(data, adj):
+    G = nx.from_numpy_array(adj.T, create_using=nx.DiGraph)
+    data_traj = from_networkx(G)
+    data.edge_traj_index = data_traj.edge_index
+    data.edge_weight = data_traj.weight
+
+    return data
+
+
 def generate_dataset(
-    data, seq_len, pre_len, time_len=None, split_ratio=0.8, normalize=True
+    data,
+    seq_len,
+    pre_len,
+    time_len=None,
+    reconstruct=False,
+    split_ratio=0.8,
+    normalize=True,
 ):
     """
     https://github.com/lehaifeng/T-GCN/blob/master/T-GCN/T-GCN-PyTorch/utils/data/functions.py
@@ -33,9 +50,13 @@ def generate_dataset(
     train_data = data[:train_size]
     test_data = data[train_size:time_len]
     train_X, train_Y, test_X, test_Y = list(), list(), list(), list()
-    for i in range(len(train_data) - seq_len - pre_len):
+    t = seq_len if reconstruct else seq_len - pre_len
+    for i in range(len(train_data) - t):
         train_X.append(np.array(train_data[i : i + seq_len]))
-        train_Y.append(np.array(train_data[i + seq_len : i + seq_len + pre_len]))
+        if reconstruct:
+            train_Y.append(np.array(train_data[i : i + seq_len]))
+        else:
+            train_Y.append(np.array(train_data[i + seq_len : i + seq_len + pre_len]))
     for i in range(len(test_data) - seq_len - pre_len):
         test_X.append(np.array(test_data[i : i + seq_len]))
         test_Y.append(np.array(test_data[i + seq_len : i + seq_len + pre_len]))
@@ -43,13 +64,20 @@ def generate_dataset(
 
 
 def generate_torch_datasets(
-    data, seq_len, pre_len, time_len=None, split_ratio=0.8, normalize=True
+    data,
+    seq_len,
+    pre_len,
+    time_len=None,
+    reconstruct=False,
+    split_ratio=0.8,
+    normalize=True,
 ):
     train_X, train_Y, test_X, test_Y = generate_dataset(
         data,
         seq_len,
         pre_len,
         time_len=time_len,
+        reconstruct=reconstruct,
         split_ratio=split_ratio,
         normalize=normalize,
     )

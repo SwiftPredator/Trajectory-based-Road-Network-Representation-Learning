@@ -313,7 +313,7 @@ def evaluate_model(args, data, network, trajectory, seed):
         if m == "traj2vec":
             margs["network"] = network
             margs["adj"] = np.loadtxt(
-                f"../models/training/gtn_precalc_adj/traj_adj_k_1_{city}.gz"
+                f"../models/training/gtn_precalc_adj/traj_adj_k_1_False_no_selfloops_smoothed_{city}.gz"
             )
 
         if m in ["rfn", "hrnr", "srn2vec"] and args["drop_label"] == "highway_enc":

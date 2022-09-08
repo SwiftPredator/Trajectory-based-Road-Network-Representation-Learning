@@ -45,7 +45,7 @@ data_rest = network.generate_road_segment_pyg_dataset(
     include_coords=True,
     traj_data=None,
     dataset=city,
-    drop_labels=["highway_enc"],  # currently only road
+    # drop_labels=["highway_enc"],  # currently only road
 )
 
 adj = np.loadtxt(f"./gtn_precalc_adj/traj_adj_k_2_{city}.gz")
@@ -54,7 +54,7 @@ adj_sample = np.loadtxt(
 )
 
 # create init emb from gtc and traj2vec concat
-device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
 # dw = Node2VecModel(data_rest, device=device, q=1, p=1)
 # dw.load_model(f"../model_states/deepwalk/model_base_{city}.pt")
 # gae = GAEModel(data_rest, device=device, encoder=GCNEncoder, emb_dim=128)
@@ -76,15 +76,15 @@ model = GTNModel(
     traj_train,
     traj_features,
     init_emb,
-    adj_sample,
-    batch_size=32,
+    # adj_sample,
+    batch_size=128,
     emb_dim=256,
     hidden_dim=512,
 )
 
-model.train(epochs=10)
+model.train(epochs=20)
 
 torch.save(
     model.model.state_dict(),
-    os.path.join("../model_states/gtn/" + "/model_base_sf_b32_69.pt"),
+    os.path.join("../model_states/gtn/" + "/model_base_sf_test_random_69.pt"),
 )

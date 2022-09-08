@@ -28,7 +28,7 @@ from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from .model import Model
-from .utils import generate_trajid_to_nodeid
+from .utils import generate_trajid_to_nodeid, transform_data
 
 
 class GTCModel(Model):
@@ -45,7 +45,7 @@ class GTCModel(Model):
         add_self_loops=True,
         norm=False,
     ):
-        self.model = GTNSubConv(data.x.shape[1], emb_dim, norm=norm)
+        self.model = GTCSubConv(data.x.shape[1], emb_dim, norm=norm)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
         self.model = self.model.to(device)
         self.device = device
@@ -61,7 +61,7 @@ class GTCModel(Model):
             )
         # else:
         # adj = np.loadtxt(load_traj_adj_path)
-        self.train_data = self.transform_data(data, adj)
+        self.train_data = transform_data(data, adj)
         self.train_data = self.train_data.to(device)
 
     def train(self, epochs: int = 1000):
@@ -96,14 +96,6 @@ class GTCModel(Model):
         neg_loss = -torch.log(1 - decoder(z, neg_edge_index, sigmoid=True) + EPS).mean()
 
         return pos_loss + neg_loss
-
-    def transform_data(self, data, adj):
-        G = nx.from_numpy_array(adj.T, create_using=nx.DiGraph)
-        data_traj = from_networkx(G)
-        data.edge_traj_index = data_traj.edge_index
-        data.edge_weight = data_traj.weight
-
-        return data
 
     def generate_node_traj_adj(
         self, k: int = np.inf, bidirectional=True, add_self_loops=True
@@ -173,7 +165,7 @@ class GTCModel(Model):
         )
 
 
-class GTNSubConv(nn.Module):
+class GTCSubConv(nn.Module):
     def __init__(self, in_dim: int, out_dim: int, norm=False):
         super().__init__()
         self.conv = GCNConv(in_dim, out_dim)

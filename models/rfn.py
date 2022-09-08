@@ -121,7 +121,7 @@ class RFNModel(Model):
     def initialize(self):
         self.rfn.initialize()
         params = self.rfn.collect_params()
-        params.reset_ctx(ctx=gpu(3))
+        params.reset_ctx(ctx=gpu(1))
         return params
 
     def save_model(self, path):
