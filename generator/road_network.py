@@ -121,13 +121,13 @@ class RoadNetwork:
         self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
 
     def fmm_trajectorie_mapping(
-        self, network_file: str, input_file: str, output_file: str
+        self, network_file: str, input_file: str, output_file: str, source_field="u", target_field="v"
     ):
         """
         Maps raw trajectory gps data to corresponding road segments on the osmnx graph
         """
 
-        network = Network(network_file, "fid", "u", "v")
+        network = Network(network_file, "fid", source_field, target_field)
         graph = NetworkGraph(network)
 
         stmatch_model = STMATCH(network, graph)
