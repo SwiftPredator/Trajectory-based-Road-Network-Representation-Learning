@@ -10,3 +10,5 @@ models/training/hrnr_data/*
 models/hrnr_original/*
 models/training/gtn_precalc_adj/*
 models/training/hrnr_data_noroad/*
+data/*
+models/training/temporal/*.pt
