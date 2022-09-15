@@ -51,10 +51,9 @@ class GTCModel(Model):
         self.device = device
         self.network = network
         if adj is None and traj_data is not None:
-            self.traj_to_node = generate_trajid_to_nodeid(network)
             self.traj_data = traj_data["seg_seq"].tolist()
-            adj = self.generate_node_traj_adj(
-                k=k, bidirectional=bidirectional, add_self_loops=add_self_loops
+            adj = GTCModel.generate_node_traj_adj(
+                traj_data, network, k=k, bidirectional=bidirectional, add_self_loops=add_self_loops
             )
             np.savetxt(
                 "./traj_adj_k_" + str(k) + "_" + str(bidirectional) + ".gz", X=adj
@@ -97,17 +96,18 @@ class GTCModel(Model):
 
         return pos_loss + neg_loss
 
-    def generate_node_traj_adj(
-        self, k: int = np.inf, bidirectional=True, add_self_loops=True
-    ):
-        nodes = list(self.network.line_graph.nodes)
-        adj = nx.to_numpy_array(self.network.line_graph)
+    @staticmethod
+    def generate_node_traj_adj(traj_data, network, k: int = np.inf, bidirectional=True, add_self_loops=True):
+        traj_to_node = generate_trajid_to_nodeid(network)
+        traj_data = traj_data["seg_seq"].tolist()
+        nodes = list(network.line_graph.nodes)
+        adj = nx.to_numpy_array(network.line_graph)
         np.fill_diagonal(adj, 0)
 
         if add_self_loops:
             adj += np.eye(len(nodes), len(nodes))
 
-        for traj in tqdm(self.traj_data):
+        for traj in tqdm(traj_data):
             # print(traj)
             for i, traj_node in enumerate(traj):
                 if k == -1:
@@ -117,8 +117,8 @@ class GTCModel(Model):
                 )
                 traj_nodes = traj[(i - left_slice) : (i + right_slice)]
                 # convert traj_nodes to graph_nodes
-                target = itemgetter(traj_node)(self.traj_to_node)
-                context = itemgetter(*traj_nodes)(self.traj_to_node)
+                target = itemgetter(traj_node)(traj_to_node)
+                context = itemgetter(*traj_nodes)(traj_to_node)
                 adj[target, context] += 1
         # remove self weighting if no self loops should be allowed
         if not add_self_loops:

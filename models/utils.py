@@ -1,7 +1,29 @@
 import numpy as np
 import torch
 import networkx as nx
-from torch_geometric.utils import from_networkx
+from torch_geometric.nn import InnerProductDecoder
+from torch_geometric.utils import (
+    add_self_loops,
+    from_networkx,
+    negative_sampling,
+    remove_self_loops,
+)
+
+
+def recon_loss(z, pos_edge_index, neg_edge_index=None):
+    decoder = InnerProductDecoder()
+    EPS = 1e-15
+
+    pos_loss = -torch.log(decoder(z, pos_edge_index, sigmoid=True) + EPS).mean()
+
+    # Do not include self-loops in negative samples
+    pos_edge_index, _ = remove_self_loops(pos_edge_index)
+    pos_edge_index, _ = add_self_loops(pos_edge_index)
+    if neg_edge_index is None:
+        neg_edge_index = negative_sampling(pos_edge_index, z.size(0))
+    neg_loss = -torch.log(1 - decoder(z, neg_edge_index, sigmoid=True) + EPS).mean()
+
+    return pos_loss + neg_loss
 
 
 def generate_trajid_to_nodeid(network):
@@ -41,11 +63,13 @@ def generate_dataset(
     :param normalize: scale the data to (0, 1], divide by the maximum value in the data
     :return: train set (X, Y) and test set (X, Y)
     """
+    print(data.shape)
     if time_len is None:
         time_len = data.shape[0]
     if normalize:
-        max_val = np.max(data)
-        data = data / max_val
+        for i in range(data.shape[-1]):
+            max_val = np.max(data[:, :, i])
+            data[:, :, i] = data[:, :, i] / max_val
     train_size = int(time_len * split_ratio)
     train_data = data[:train_size]
     test_data = data[train_size:time_len]
@@ -54,7 +78,7 @@ def generate_dataset(
     for i in range(len(train_data) - t):
         train_X.append(np.array(train_data[i : i + seq_len]))
         if reconstruct:
-            train_Y.append(np.array(train_data[i : i + seq_len]))
+            train_Y.append(np.array(train_data[i : i + seq_len, :, 0]))
         else:
             train_Y.append(np.array(train_data[i + seq_len : i + seq_len + pre_len]))
     for i in range(len(test_data) - seq_len - pre_len):

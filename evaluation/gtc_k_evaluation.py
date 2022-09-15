@@ -95,8 +95,8 @@ def evaluate_k(args, data, network, trajectory):
             model_bi.train(epochs=5000)
             model_for.train(epochs=5000)
 
-            eva.register_model("gtn_k_{}_bidirectional".format(k), model_bi, {})
-            eva.register_model("gtn_k_{}_forward".format(k), model_for, {})
+            eva.register_model("gtc_k_{}_bidirectional".format(k), model_bi, {})
+            eva.register_model("gtc_k_{}_forward".format(k), model_for, {})
 
         seed_results = eva.run()
 
@@ -112,7 +112,7 @@ def evaluate_k(args, data, network, trajectory):
                 seed_res["seed"] = seed
                 results[i] = (name, pd.concat([full_res, seed_res], axis=0))
 
-    path = os.path.join(args["path"], "gtn_k_eva")
+    path = os.path.join(args["path"], "gtc_k_eva")
     if not os.path.exists(path):
         os.mkdir(path)
     for name, res in results:

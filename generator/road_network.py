@@ -24,8 +24,7 @@ except ImportError:
 
 try:
     import fmm
-    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
-                     STMATCHConfig)
+    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
 except ImportError:
     ...
 
@@ -96,16 +95,15 @@ class RoadNetwork:
 
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
-    def load_hanover_temporal(self):
-        df = pd.read_csv(
-            "../datasets/trajectories/hanover/temporal/hannover_streetgraph.csv"
-        )
+    def load_hanover_temporal(self, path: str):
+        df = pd.read_csv(path)
         df["geometry"] = df["geometry"].swifter.apply(wkt.loads)
         self.gdf_edges = gpd.GeoDataFrame(df, geometry="geometry")
         self.gdf_edges.rename(
             columns={"source": "u", "target": "v", "type": "highway"}, inplace=True
         )
         self.gdf_edges["key"] = 0
+        self.gdf_edges.loc[self.gdf_edges[["u", "v"]].duplicated(), "key"] = 1
 
         G = nx.from_pandas_edgelist(
             self.gdf_edges, "u", "v", True, nx.MultiDiGraph, "key"
@@ -119,9 +117,15 @@ class RoadNetwork:
         le = LabelEncoder()
         self.gdf_edges["highway_enc"] = le.fit_transform(self.gdf_edges["highway"])
         self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
+        self.gdf_edges["fid"] = np.arange(0, self.gdf_edges.shape[0], dtype="int")
 
     def fmm_trajectorie_mapping(
-        self, network_file: str, input_file: str, output_file: str, source_field="u", target_field="v"
+        self,
+        network_file: str,
+        input_file: str,
+        output_file: str,
+        source_field="u",
+        target_field="v",
     ):
         """
         Maps raw trajectory gps data to corresponding road segments on the osmnx graph
@@ -184,6 +188,7 @@ class RoadNetwork:
         include_coords: bool = False,
         one_hot_enc: bool = True,
         return_df: bool = False,
+        only_edge_index: bool = False,
         dataset: str = "porto",
     ):
         """
@@ -201,6 +206,9 @@ class RoadNetwork:
 
         edge_index = np.array(edge_list[["sidx", "tidx"]].values).T
         edge_index = torch.tensor(edge_index, dtype=torch.long).contiguous()
+
+        if only_edge_index:
+            return Data(edge_index=edge_index)
 
         # create feature matrix
         df = self.gdf_edges.copy()
