@@ -178,6 +178,10 @@ class RoadNetwork:
         return self.gdf_nodes.geometry.total_bounds
 
     @property
+    def bounds_edges(self):
+        return self.gdf_edges.geometry.total_bounds
+
+    @property
     def line_graph(self):
         return nx.line_graph(self.G, create_using=nx.DiGraph)
 

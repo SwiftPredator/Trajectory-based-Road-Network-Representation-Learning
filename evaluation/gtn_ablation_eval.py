@@ -26,7 +26,7 @@ from tasks.task_loader import *
 
 model_info = {
     "gtn": {
-        "path": "../models/model_states/gtn/model_noroad.pt",
+        "path": "../models/model_states/gtn/model_base_porto_69.pt",
         "dim": 256,
     },
     "gtn_t": {
@@ -34,11 +34,11 @@ model_info = {
         "dim": 256,
     },
     "gtn_gcn": {
-        "path": "../models/model_states/gtn/ablation/model_noroad_ablation_gae_seed_69.pt",
+        "path": "../models/model_states/gtn/ablation/model_base_ablation_gae_seed_69.pt",
         "dim": 256,
     },
     "gtn_dw": {
-        "path": "../models/model_states/gtn/ablation/model_noroad_ablation_dw_seed_69.pt",
+        "path": "../models/model_states/gtn/ablation/model_base_ablation_dw_seed_69.pt",
         "dim": 256,
     },
 }
@@ -99,7 +99,7 @@ def ablation(args, data, network, test):
 
         for model_name, _ in model_info.items():
             model = init_gtn_variant(model_name, data, device, network)
-            eva.register_model(model_name, model)
+            eva.register_model(model_name, model, {})
 
         seed_results = eva.run()
 
@@ -127,13 +127,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--tasks", help="Tasks to evaluate on", required=True, type=str
     )
-    # parser.add_argument(
-    #     "-s",
-    #     "--speed",
-    #     help="Include speed features (1 or 0)",
-    #     type=int,
-    #     default=0,
-    # )
     parser.add_argument(
         "-p",
         "--path",
@@ -166,6 +159,15 @@ if __name__ == "__main__":
         type=str,
         default="porto",
     )  # sf, porto or hannover
+
+    parser.add_argument(
+        "-b",
+        "--batch_size",
+        help="Batch size for lstm training",
+        required=False,
+        type=int,
+        default=512,
+    )
 
     args = vars(parser.parse_args())
 

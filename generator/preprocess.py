@@ -58,7 +58,7 @@ def clip_trajectories(
         df["POLYLINE"] = df["POLYLINE"].swifter.apply(wkt.loads)
     gdf = gpd.GeoDataFrame(df, crs="epsg:4326", geometry="POLYLINE")
 
-    return gdf.clip(poly_gdf, keep_geom_type=True).explode(ignore_index=True)
+    return gdf.clip(poly_gdf, keep_geom_type=True)
 
 
 def filter_min_points(df: gpd.GeoDataFrame, min_gps_points: int) -> gpd.GeoDataFrame:

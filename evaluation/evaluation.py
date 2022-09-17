@@ -20,7 +20,7 @@ class Evaluation:
         embs = [(n, m.load_emb(), a) for n, (m, a) in self.models.items()]
         for name, task in tqdm(self.tasks.items(), desc="Current task"):
             df = pd.DataFrame(columns=list(task.metrics.keys()))
-            for n, emb, args in embs:
+            for n, emb, args in tqdm(embs, desc="Current model", leave=False):
                 if "gtn" in n:
                     emb = emb[2:]  # remove mask and pad token
                 row = pd.Series(task.evaluate(emb=emb, **args))
