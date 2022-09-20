@@ -11,7 +11,7 @@ import osmnx as ox
 import pandas as pd
 import swifter
 from shapely import wkt
-from shapely.geometry import LineString
+from shapely.geometry import LineString, box
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
@@ -118,6 +118,32 @@ class RoadNetwork:
         self.gdf_edges["highway_enc"] = le.fit_transform(self.gdf_edges["highway"])
         self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
         self.gdf_edges["fid"] = np.arange(0, self.gdf_edges.shape[0], dtype="int")
+
+    def subsample_graph(self, ratio: int = 0.7):
+        bounds_lon = abs(self.bounds_edges[2] - self.bounds_edges[0]) * (1 - ratio)
+        bounds_lat = abs(self.bounds_edges[3] - self.bounds_edges[1]) * (1 - ratio)
+        bounds = [
+            self.bounds_edges[0] + bounds_lon,
+            self.bounds_edges[1] + bounds_lat,
+            self.bounds_edges[2] - bounds_lon,
+            self.bounds_edges[3] - bounds_lat,
+        ]
+        bbox = box(*bounds)
+        sub_df = gpd.clip(self.gdf_edges, bbox, keep_geom_type=True)
+        sub_df.reset_index(inplace=True)
+
+        G = nx.from_pandas_edgelist(sub_df, "u", "v", True, nx.MultiDiGraph, "key")
+        sG = [
+            G.subgraph(c)
+            for c in sorted(nx.weakly_connected_components(G), key=len, reverse=True)
+        ][0]
+
+        sub_df.set_index(["u", "v", "key"], inplace=True)
+        network = RoadNetwork()
+        network.gdf_edges = sub_df
+        network.G = sG
+
+        return network
 
     def fmm_trajectorie_mapping(
         self,

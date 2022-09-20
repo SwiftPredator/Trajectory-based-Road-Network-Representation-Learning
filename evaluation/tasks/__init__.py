@@ -5,4 +5,5 @@ from .next_location import NextLocationPrediciton
 from .roadclf import RoadTypeClfTask
 from .route import RoutePlanning
 from .task import Task
+from .temporal_plugin import TemporalEmbeddingPlugin
 from .travel_time import TravelTimeEstimation

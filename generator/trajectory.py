@@ -41,8 +41,6 @@ class Trajectory:
             )  # for porto this was [ ] and " " as seperator, but should also work now for porto like this
         )
 
-        print(self.df)
-
     def generate_TTE_datatset(self):
         """
         Generates dataset for TimeTravel Estimation.

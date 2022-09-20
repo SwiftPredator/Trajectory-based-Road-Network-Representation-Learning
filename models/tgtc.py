@@ -51,7 +51,7 @@ class TemporalGraphTrainer(Model):
             hidden_dim=hidden_dim,
             num_nodes=data.shape[1],
         )
-        self.model = nn.DataParallel(self.model, device_ids=[0, 1, 2, 3])
+        self.model = nn.DataParallel(self.model, device_ids=[0, 1, 2])
         self.model.to(device)
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=0.001, weight_decay=1e-5
