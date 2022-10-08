@@ -26,6 +26,9 @@ class TemporalEmbeddingPlugin:
         for i, t in enumerate(times):
             start_idx, end_idx = TemporalEmbeddingPlugin.time_to_index(t)
             timeframe = self.processed_temp_data[start_idx:end_idx, :, :]
+            # pad with zeros if timeframe would normally go beyong
+            # if timeframe.shape[0] < 12:
+            #     timeframe[timeframe.shape[0]+1:12, :, :] = 0
             timeframe_batch[i, :, :, :] = timeframe
 
         with torch.no_grad():
@@ -45,6 +48,15 @@ class TemporalEmbeddingPlugin:
 
     def load_data(self, path):
         self.processed_temp_data = torch.load(path)
+        self.processed_temp_data = torch.cat(
+            [self.processed_temp_data, self.processed_temp_data[: 24 * 4]], dim=0
+        )
+        # norm data
+        for i in range(self.processed_temp_data.shape[-1]):
+            max_val = self.processed_temp_data[:, :, i].max()
+            self.processed_temp_data[:, :, i] = (
+                self.processed_temp_data[:, :, i] / max_val
+            )
 
     @staticmethod
     def prepare_temp_data(temporal, network):
@@ -88,3 +100,15 @@ class TemporalEmbeddingPlugin:
         )  # three hours i.e 12 steps
 
         return start_idx, end_idx
+
+
+class NormalPlugin:
+    def __init__(self, model: nn.Module, network, device):
+        super().__init__()
+        self.model = model
+        self.device = device
+        self.network = network
+
+    def generate_emb(self, times):
+        # Bx3 - 3 time features B -> Batch Size
+        return torch.Tensor(self.model.load_emb()).unsqueeze(0), None

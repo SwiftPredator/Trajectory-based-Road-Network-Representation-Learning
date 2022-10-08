@@ -10,7 +10,9 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from .contextual_plugin import ContextualEmbeddingPlugin
 from .task import Task
+from .temporal_plugin import NormalPlugin, TemporalEmbeddingPlugin
 
 
 class NextLocationPrediciton(Task):
@@ -39,22 +41,23 @@ class NextLocationPrediciton(Task):
         self.seed = seed
 
         # make a train test split on trajectorie data
-        train, test = model_selection.train_test_split(
+        self.train, self.test = model_selection.train_test_split(
             self.data, test_size=0.2, random_state=self.seed
         )
-        self.train_loader = DataLoader(
-            NL_Dataset(train, self.network),
+
+    def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):  # porto coord
+        use_temporal = False if plugin == None else True
+        train_loader = DataLoader(
+            NL_Dataset(self.train, self.network, use_temporal),
             collate_fn=NL_Dataset.collate_fn_padd,
             batch_size=self.batch_size,
             shuffle=True,
         )
-        self.eval_loader = DataLoader(
-            NL_Dataset(test, self.network),
+        eval_loader = DataLoader(
+            NL_Dataset(self.test, self.network, use_temporal),
             collate_fn=NL_Dataset.collate_fn_padd,
             batch_size=self.batch_size,
         )
-
-    def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):  # porto coord
         model = NL_LSTM(
             out_dim=len(
                 self.network.line_graph.nodes
@@ -74,10 +77,10 @@ class NextLocationPrediciton(Task):
         )
 
         # train on x trajectories
-        model.train_model(loader=self.train_loader, emb=emb, epochs=self.epochs)
+        model.train_model(loader=train_loader, emb=emb, epochs=self.epochs)
 
         # eval on test set using distance loss
-        yh, y = model.predict(loader=self.eval_loader, emb=emb)
+        yh, y = model.predict(loader=eval_loader, emb=emb)
         res = {}
         for name, (metric, args) in self.metrics.items():
             res[name] = metric(y, yh, **args)
@@ -100,12 +103,16 @@ class NextLocationPrediciton(Task):
 
 
 class NL_Dataset(Dataset):
-    def __init__(self, data, network):
+    def __init__(self, data, network, _use_time_features=False):
         self.X = data["seg_seq"].swifter.apply(lambda x: x[:-1]).values
         self.y = data["seg_seq"].swifter.apply(lambda x: x[-1]).values
 
+        if _use_time_features:
+            self.time = data[["dayofweek", "start_hour", "end_hour"]].values
+
         self.network = network
         self.map = self.create_edge_emb_mapping()
+        self._use_time_features = _use_time_features
         self.neighbor_masks = self.create_neighborhood_mask()
 
     def __len__(self):
@@ -115,6 +122,7 @@ class NL_Dataset(Dataset):
         return (
             torch.tensor(self.X[idx], dtype=int),
             self.y[idx],
+            self.time[idx] if self._use_time_features else None,
             self.neighbor_masks[idx],
             self.map,
         )
@@ -172,7 +180,7 @@ class NL_Dataset(Dataset):
         """
         Padds batch of variable length
         """
-        data, label, neigh_masks, map = zip(*batch)
+        data, label, time, neigh_masks, map = zip(*batch)
         # seq length for each input in batch
         lengths_old = torch.tensor([t.shape[0] for t in data])
 
@@ -200,6 +208,16 @@ class NL_Dataset(Dataset):
             )
         ]
 
+        if time != None:
+            time = [
+                x
+                for _, x in sorted(
+                    zip(lengths_old.tolist(), time),
+                    key=lambda pair: pair[0],
+                    reverse=True,
+                )
+            ]
+
         # pad
         data = torch.nn.utils.rnn.pad_sequence(data, padding_value=0, batch_first=True)
         # compute mask
@@ -209,6 +227,7 @@ class NL_Dataset(Dataset):
         return (
             data,
             torch.tensor(label, dtype=torch.long),
+            torch.tensor(time if time != None else [], dtype=int),
             neigh_masks,
             lengths,
             mask,
@@ -231,7 +250,7 @@ class NL_LSTM(nn.Module):
         self.encoder = nn.LSTM(
             emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
-        if plugin is not None:
+        if plugin is not None and type(plugin) == ContextualEmbeddingPlugin:
             hidden_units = hidden_units * 2
 
         self.decoder = nn.Sequential(
@@ -279,7 +298,7 @@ class NL_LSTM(nn.Module):
             [x[b, plengths[b] - 1] for b in range(batch_size)]
         )  # get last valid item per batch batch x hidden
 
-        if self.plugin is not None:
+        if self.plugin is not None and type(self.plugin) == ContextualEmbeddingPlugin:
             x = self.plugin(x)
 
         yh = self.decoder(x)
@@ -292,10 +311,24 @@ class NL_LSTM(nn.Module):
         self.train()
         for e in range(epochs):
             total_loss = 0
-            for X, y, neigh_masks, lengths, mask, map in tqdm(loader, leave=False):
+            for X, y, time, neigh_masks, lengths, mask, map in tqdm(
+                loader, leave=False
+            ):
+
+                if self.plugin is not None and (
+                    type(self.plugin) == TemporalEmbeddingPlugin
+                    or type(self.plugin) == NormalPlugin
+                ):
+                    emb, _ = self.plugin.generate_emb(time)
+                    emb = emb.detach().cpu()
+
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
-                if self.plugin is not None:
+
+                if (
+                    self.plugin is not None
+                    and type(self.plugin) == ContextualEmbeddingPlugin
+                ):
                     self.plugin.register_id_seq(X, mask, map, lengths)
 
                 y = y.to(self.device)
@@ -313,11 +346,22 @@ class NL_LSTM(nn.Module):
         with torch.no_grad():
             self.eval()
             yhs, ys = [], []
-            for X, y, neigh_mask, lengths, mask, map in loader:
+            for X, y, time, neigh_mask, lengths, mask, map in loader:
+
+                if self.plugin is not None and (
+                    type(self.plugin) == TemporalEmbeddingPlugin
+                    or type(self.plugin) == NormalPlugin
+                ):
+                    emb, _ = self.plugin.generate_emb(time)
+                    emb = emb.detach().cpu()
+
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
 
-                if self.plugin is not None:
+                if (
+                    self.plugin is not None
+                    and type(self.plugin) == ContextualEmbeddingPlugin
+                ):
                     self.plugin.register_id_seq(X, mask, map, lengths)
 
                 y = y.to(self.device)
@@ -345,9 +389,10 @@ class NL_LSTM(nn.Module):
         """
         Transform batch_size, seq_length, 1 to batch_size, seq_length, emb_size
         """
-        res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[1]))
+        res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[-1]))
         for i, seq in enumerate(batch):
+            idx = i if emb.shape[0] > 1 else 0
             emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
-            res[i, mask[i], :] = torch.Tensor(emb[emb_ids, :]).float()
+            res[i, mask[i], :] = emb[idx, emb_ids, :]
 
         return res

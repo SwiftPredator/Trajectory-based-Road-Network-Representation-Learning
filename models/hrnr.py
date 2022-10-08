@@ -175,13 +175,13 @@ class GraphEncoderTL(nn.Module):
     def __init__(self, struct_assign, fnc_assign, struct_adj, device):
         super(GraphEncoderTL, self).__init__()
         # hyperparameters from original paper
-        node_num = 16000 # 30000 for sf, ha
+        node_num = 30000  # 30000 for sf, ha 16k for porto
         node_dims = 32
         type_num = 20  # 20 for porto
         type_dims = 32
-        length_num = 2200 # 16836  for sf,ha
+        length_num = 16836  # 16836  for sf,ha - 2200 for porto
         length_dims = 32
-        lane_num = 6  # 30 for sf, ha
+        lane_num = 30  # 30 for sf, ha, 6 for porto
         lane_dims = 32
         self.gnn_layers = 1
 

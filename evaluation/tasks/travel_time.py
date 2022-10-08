@@ -9,7 +9,9 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from .contextual_plugin import ContextualEmbeddingPlugin
 from .task import Task
+from .temporal_plugin import NormalPlugin, TemporalEmbeddingPlugin
 
 
 class TravelTimeEstimation(Task):
@@ -37,22 +39,23 @@ class TravelTimeEstimation(Task):
         self.epochs = epochs
         self.seed = seed
         # make a train test split on trajectorie data
-        train, test = model_selection.train_test_split(
+        self.train, self.test = model_selection.train_test_split(
             self.data, test_size=0.2, random_state=self.seed
-        )
-        self.train_loader = DataLoader(
-            TTE_Dataset(train, network),
-            collate_fn=TTE_Dataset.collate_fn_padd,
-            batch_size=batch_size,
-            shuffle=True,
-        )
-        self.eval_loader = DataLoader(
-            TTE_Dataset(test, network),
-            collate_fn=TTE_Dataset.collate_fn_padd,
-            batch_size=batch_size,
         )
 
     def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):
+        use_temporal = False if plugin == None else True
+        self.train_loader = DataLoader(
+            TTE_Dataset(self.train, self.network, use_temporal),
+            collate_fn=TTE_Dataset.collate_fn_padd,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+        self.eval_loader = DataLoader(
+            TTE_Dataset(self.test, self.network, use_temporal),
+            collate_fn=TTE_Dataset.collate_fn_padd,
+            batch_size=self.batch_size,
+        )
         model = TTE_LSTM(
             device=self.device,
             emb_dim=emb.shape[1],
@@ -76,17 +79,25 @@ class TravelTimeEstimation(Task):
 
 
 class TTE_Dataset(Dataset):
-    def __init__(self, data, network):
+    def __init__(self, data, network, _use_time_features=False):
         self.X = data["seg_seq"].values
         self.y = data["travel_time"].values
+        if _use_time_features:
+            self.time = data[["dayofweek", "start_hour", "end_hour"]].values
         self.network = network
         self.map = self.create_edge_emb_mapping()
+        self._use_time_features = _use_time_features
 
     def __len__(self):
         return self.X.shape[0]
 
     def __getitem__(self, idx):
-        return torch.tensor(self.X[idx], dtype=int), self.y[idx], self.map
+        return (
+            torch.tensor(self.X[idx], dtype=int),
+            self.y[idx],
+            self.time[idx] if self._use_time_features else None,
+            self.map,
+        )
 
     # tested index mapping is correct
     def create_edge_emb_mapping(self):
@@ -111,7 +122,7 @@ class TTE_Dataset(Dataset):
         """
         Padds batch of variable length
         """
-        data, label, map = zip(*batch)
+        data, label, time, map = zip(*batch)
         # seq length for each input in batch
         lengths_old = torch.tensor([t.shape[0] for t in data])
 
@@ -131,12 +142,29 @@ class TTE_Dataset(Dataset):
             )
         ]
 
+        if time != None:
+            time = [
+                x
+                for _, x in sorted(
+                    zip(lengths_old.tolist(), time),
+                    key=lambda pair: pair[0],
+                    reverse=True,
+                )
+            ]
+
         # pad
         data = torch.nn.utils.rnn.pad_sequence(data, padding_value=0, batch_first=True)
         # compute mask
         mask = data != 0
 
-        return data, torch.Tensor(label), lengths, mask, map[0]
+        return (
+            data,
+            torch.Tensor(label),
+            torch.tensor(time if time[0] is not None else [], dtype=int),
+            lengths,
+            mask,
+            map[0],
+        )
 
 
 class TTE_LSTM(nn.Module):
@@ -153,7 +181,7 @@ class TTE_LSTM(nn.Module):
         self.encoder = nn.LSTM(
             emb_dim, hidden_units, num_layers=layers, batch_first=True, dropout=0.5
         )
-        if plugin is not None:
+        if plugin is not None and type(plugin) == ContextualEmbeddingPlugin:
             hidden_units = hidden_units * 2
         self.decoder = nn.Sequential(
             nn.Linear(hidden_units, hidden_units * 2),
@@ -190,7 +218,7 @@ class TTE_LSTM(nn.Module):
             [x[b, plengths[b] - 1] for b in range(batch_size)]
         )  # get last valid item per batch batch x hidden
 
-        if self.plugin is not None:
+        if self.plugin is not None and type(self.plugin) == ContextualEmbeddingPlugin:
             x = self.plugin(x)
 
         yh = self.decoder(x)
@@ -201,11 +229,22 @@ class TTE_LSTM(nn.Module):
         self.train()
         for e in range(epochs):
             total_loss = 0
-            for X, y, lengths, mask, map in loader:
+            for X, y, time, lengths, mask, map in loader:
+
+                if self.plugin is not None and (
+                    type(self.plugin) == TemporalEmbeddingPlugin
+                    or type(self.plugin) == NormalPlugin
+                ):
+                    emb, _ = self.plugin.generate_emb(time)
+                    emb = emb.detach().cpu()
+
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
 
-                if self.plugin is not None:
+                if (
+                    self.plugin is not None
+                    and type(self.plugin) == ContextualEmbeddingPlugin
+                ):
                     self.plugin.register_id_seq(X, mask, map, lengths)
 
                 y = y.to(self.device)
@@ -223,11 +262,22 @@ class TTE_LSTM(nn.Module):
         with torch.no_grad():
             self.eval()
             yhs, ys = [], []
-            for X, y, lengths, mask, map in loader:
+            for X, y, time, lengths, mask, map in loader:
+
+                if self.plugin is not None and (
+                    type(self.plugin) == TemporalEmbeddingPlugin
+                    or type(self.plugin) == NormalPlugin
+                ):
+                    emb, _ = self.plugin.generate_emb(time)
+                    emb = emb.detach().cpu()
+
                 emb_batch = self.get_embedding(emb, X.clone(), mask, map)
                 emb_batch = emb_batch.to(self.device)
 
-                if self.plugin is not None:
+                if (
+                    self.plugin is not None
+                    and type(self.plugin) == ContextualEmbeddingPlugin
+                ):
                     self.plugin.register_id_seq(X, mask, map, lengths)
 
                 y = y.to(self.device)
@@ -253,9 +303,13 @@ class TTE_LSTM(nn.Module):
         """
         Transform batch_size, seq_length, 1 to batch_size, seq_length, emb_size
         """
-        res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[1]))
+        if len(emb.shape) < 3:
+            emb = emb[None, ...]
+
+        res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[-1]))
         for i, seq in enumerate(batch):
+            idx = i if emb.shape[0] > 1 else 0
             emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
-            res[i, mask[i], :] = torch.Tensor(emb[emb_ids, :]).float()
+            res[i, mask[i], :] = torch.Tensor(emb[idx, emb_ids, :])
 
         return res
