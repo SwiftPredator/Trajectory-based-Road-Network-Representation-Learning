@@ -17,28 +17,46 @@ class Trajectory:
     def __init__(self, df_path: str, nrows=-1):
         self.df = pd.read_csv(df_path, sep=";", nrows=nrows)
         # preprocess column types
-        self.df["cpath"] = self.df["cpath"].swifter.apply(
-            lambda x: np.fromstring(
-                x.replace("\n", "").replace("(", "").replace(")", "").replace(" ", ""),
-                sep=",",
-                dtype=np.int,
+        self.df["cpath"] = (
+            self.df["cpath"]
+            .swifter.progress_bar(False)
+            .apply(
+                lambda x: np.fromstring(
+                    x.replace("\n", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace(" ", ""),
+                    sep=",",
+                    dtype=np.int,
+                )
             )
         )
-        self.df["opath"] = self.df["opath"].swifter.apply(
-            lambda x: np.fromstring(
-                x.replace("\n", "").replace("(", "").replace(")", "").replace(" ", ""),
-                sep=",",
-                dtype=np.int,
+        self.df["opath"] = (
+            self.df["opath"]
+            .swifter.progress_bar(False)
+            .apply(
+                lambda x: np.fromstring(
+                    x.replace("\n", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace(" ", ""),
+                    sep=",",
+                    dtype=np.int,
+                )
             )
         )
-        self.df["speed"] = self.df["speed"].swifter.apply(
-            lambda x: np.fromstring(
-                x.replace("\n", "")
-                .replace("[", "")
-                .replace("]", "")
-                .replace("  ", " "),
-                sep=",",
-            )  # for porto this was [ ] and " " as seperator, but should also work now for porto like this
+        self.df["speed"] = (
+            self.df["speed"]
+            .swifter.progress_bar(False)
+            .apply(
+                lambda x: np.fromstring(
+                    x.replace("\n", "")
+                    .replace("[", "")
+                    .replace("]", "")
+                    .replace("  ", " "),
+                    sep=",",
+                )  # for porto this was [ ] and " " as seperator, but should also work now for porto like this
+            )
         )
 
     def generate_TTE_datatset(self):
@@ -47,8 +65,8 @@ class Trajectory:
         Returns dataframe with traversed road segments and needed time.
         """
         tte = self.df[["id", "cpath", "duration"]].copy()
-        tte["duration"] = tte["duration"].swifter.apply(literal_eval)
-        tte["travel_time"] = tte["duration"].swifter.apply(np.sum)
+        tte["duration"] = tte["duration"].apply(literal_eval)
+        tte["travel_time"] = tte["duration"].apply(np.sum)
         tte.drop("duration", axis=1, inplace=True)
 
         return tte.rename(columns={"cpath": "seg_seq"})

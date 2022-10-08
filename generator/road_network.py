@@ -95,6 +95,16 @@ class RoadNetwork:
 
         self.G = ox.graph_from_gdfs(self.gdf_nodes, self.gdf_edges)
 
+    def load_edges(self, path):
+        self.gdf_edges = gpd.read_file(path + "/edges.shp")
+        self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
+
+        self.gdf_edges.reset_index(inplace=True)
+        self.G = nx.from_pandas_edgelist(
+            self.gdf_edges, "u", "v", True, nx.MultiDiGraph, "key"
+        )
+        self.gdf_edges.set_index(["u", "v", "key"], inplace=True)
+
     def load_hanover_temporal(self, path: str):
         df = pd.read_csv(path)
         df["geometry"] = df["geometry"].swifter.apply(wkt.loads)
@@ -254,6 +264,24 @@ class RoadNetwork:
         if include_coords:
             df["x"] = df.geometry.centroid.x / 100  # normalize to -2/2
             df["y"] = df.geometry.centroid.y / 100  # normalize to -1/1
+
+        if dataset == "hannover_small":
+            features = torch.DoubleTensor(
+                np.array(
+                    df[["speed_limit", "highway_enc", "length"]].values, dtype=np.double
+                )
+            )
+            # print(features)
+            # create pyg dataset
+            data = Data(x=features, edge_index=edge_index)
+            transform = T.Compose(
+                [
+                    T.NormalizeFeatures(),
+                ]
+            )
+            data = transform(data)
+
+            return data
 
         highway = df["highway"].reset_index(drop=True)
         drops = [

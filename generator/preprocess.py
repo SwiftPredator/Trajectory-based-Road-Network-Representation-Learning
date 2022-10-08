@@ -53,12 +53,12 @@ def clip_trajectories(
     df: pd.DataFrame, bounds: np.array, polyline_convert: bool = False
 ) -> gpd.GeoDataFrame:
     bbox = box(*bounds)
-    poly_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs="EPSG:4326")
+    # poly_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs="EPSG:4326")
     if not polyline_convert:
         df["POLYLINE"] = df["POLYLINE"].swifter.apply(wkt.loads)
     gdf = gpd.GeoDataFrame(df, crs="epsg:4326", geometry="POLYLINE")
 
-    return gdf.clip(poly_gdf, keep_geom_type=True)
+    return gpd.clip(gdf, bbox, keep_geom_type=True)
 
 
 def filter_min_points(df: gpd.GeoDataFrame, min_gps_points: int) -> gpd.GeoDataFrame:
