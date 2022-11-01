@@ -34,6 +34,7 @@ class DestinationPrediciton(Task):
         emb_dim: int = 128,
         batch_size: int = 128,
         epochs: int = 10,
+        learning_rate: float = 0.001,
     ):
         self.metrics = {}
         self.data = traj_dataset
@@ -41,6 +42,7 @@ class DestinationPrediciton(Task):
         self.emb_dim = emb_dim
         self.device = device
         self.batch_size = batch_size
+        self.lr = learning_rate
         self.epochs = epochs
         self.seed = seed
         self.comp_ratio = comp_ratio
@@ -82,6 +84,7 @@ class DestinationPrediciton(Task):
             # else emb.embed.tok_embed.weight.shape[1]
             batch_size=self.batch_size,
             plugin=plugin,
+            learning_rate=self.lr,
         )
 
         # train on x trajectories
@@ -196,7 +199,7 @@ class DP_Dataset(Dataset):
         return (
             data,
             torch.tensor(label, dtype=torch.long),
-            torch.tensor(time if time != None else [], dtype=int),
+            torch.tensor(time if time[0] is not None else [], dtype=int),
             lengths,
             mask,
             map[0],
@@ -213,6 +216,7 @@ class DP_LSTM(nn.Module):
         layers: int = 2,
         batch_size: int = 128,
         plugin=None,
+        learning_rate: float = 0.001,
     ):
         super(DP_LSTM, self).__init__()
         print(emb_dim)
@@ -234,7 +238,7 @@ class DP_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.CrossEntropyLoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.opt = torch.optim.Adam(self.parameters(), lr=learning_rate)
 
         self.plugin = plugin
         self.encoder.to(device)
@@ -343,10 +347,12 @@ class DP_LSTM(nn.Module):
         """
         Transform batch_size, seq_length, 1 to batch_size, seq_length, emb_size
         """
+        if len(emb.shape) < 3:
+            emb = emb[None, ...]
         res = torch.zeros((batch.shape[0], batch.shape[1], emb.shape[-1]))
         for i, seq in enumerate(batch):
             idx = i if emb.shape[0] > 1 else 0
             emb_ids = itemgetter(*seq[mask[i]].tolist())(map)
-            res[i, mask[i], :] = emb[idx, emb_ids, :]
+            res[i, mask[i], :] = torch.Tensor(emb[idx, emb_ids, :])
 
         return res

@@ -49,6 +49,7 @@ def init_traveltime(args, traj_data, network, device, seed):
         device=device,
         batch_size=args["batch_size"],
         epochs=args["epochs"],
+        learning_rate=args["learning_rate"],
         seed=seed,
     )
     travel_time_est.register_metric(
@@ -102,6 +103,7 @@ def init_nextlocation(args, traj_data, network, device, seed):
         device=device,
         batch_size=args["batch_size"],
         epochs=args["epochs"],
+        learning_rate=args["learning_rate"],
         seed=seed,
     )
 
@@ -121,6 +123,7 @@ def init_destination(args, traj_data, network, device, seed):
         device=device,
         batch_size=args["batch_size"],
         epochs=args["epochs"],
+        learning_rate=args["learning_rate"],
         seed=seed,
     )
 

@@ -81,9 +81,12 @@ def generate_dataset(
             train_Y.append(np.array(train_data[i : i + seq_len, :, 0]))
         else:
             train_Y.append(np.array(train_data[i + seq_len : i + seq_len + pre_len]))
-    for i in range(len(test_data) - seq_len - pre_len):
+    for i in range(len(test_data) - t):
         test_X.append(np.array(test_data[i : i + seq_len]))
-        test_Y.append(np.array(test_data[i + seq_len : i + seq_len + pre_len]))
+        if reconstruct:
+            test_Y.append(np.array(test_data[i : i + seq_len, :, 0]))
+        else:
+            test_Y.append(np.array(test_data[i + seq_len : i + seq_len + pre_len]))
     return np.array(train_X), np.array(train_Y), np.array(test_X), np.array(test_Y)
 
 

@@ -1,0 +1,10 @@
+{
+    "cache_key": "eyJhcmd1bWVudHMiOlsiLS1sb2dkaXIiLCJ0Yl9sb2dzLyJdLCJjb25maWd1cmVfa3dhcmdzIjp7fSwid29ya2luZ19kaXJlY3RvcnkiOiIvZHN0b3JlL2hvbWUvcGhlaW5lbWV5ZXIvUm9hZC1OZXR3b3JrLUVtYmVkZGluZy1HZW5lcmF0b3IvbW9kZWxzL3RyYWluaW5nL3RlbXBvcmFsIn0=",
+    "db": "",
+    "logdir": "tb_logs/",
+    "path_prefix": "",
+    "pid": 23800,
+    "port": 6006,
+    "start_time": 1667262962,
+    "version": "2.10.1"
+}

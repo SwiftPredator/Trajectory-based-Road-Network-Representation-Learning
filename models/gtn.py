@@ -226,7 +226,14 @@ class PositionalEncoding(nn.Module):
 
 class TrajectoryDataset(Dataset):
     def __init__(
-        self, trajs, network, traj_map, util_data, adj=None, seq_len=150, mask_ratio=0.25
+        self,
+        trajs,
+        network,
+        traj_map,
+        util_data,
+        adj=None,
+        seq_len=150,
+        mask_ratio=0.25,
     ):
         self.trajs = trajs
         self.network = network
@@ -496,7 +503,7 @@ class Block(nn.Module):
         self.drop = nn.Dropout(0.5)
 
     def forward(self, x, mask):
-        h = self.attn(x, mask)
+        h = self.attn(x, mask) # b x s x e
         h = self.norm1(x + self.drop(self.proj(h)))
         h = self.norm2(h + self.drop(self.pwff(h)))
         return h

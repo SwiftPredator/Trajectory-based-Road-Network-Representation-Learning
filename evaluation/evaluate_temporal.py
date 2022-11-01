@@ -3,9 +3,9 @@ import logging
 import os
 import random
 import sys
-import uuid
 from datetime import datetime
 
+import networkx as nx
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
@@ -24,6 +24,7 @@ from models import (
     GCNEncoder,
     GTCModel,
     GTNModel,
+    ModelVariant,
     Node2VecModel,
     PCAModel,
     TemporalGraphTrainer,
@@ -40,13 +41,28 @@ logging.getLogger().setLevel(logging.INFO)
 model_map = {
     "tgtc": (
         TemporalGraphTrainer,
-        {"use_attention": False},
-        "../models/model_states/temporal/tgtc/model_small_10epochs_lstm_tsd.pt",
+        {"model_type": ModelVariant.TGTC_BASE},
+        "../models/model_states/temporal/tgtc/model_small_10epochs_base.pt",
+    ),
+    "tgtc-fusion": (
+        TemporalGraphTrainer,
+        {"model_type": ModelVariant.TGTC_FUSION},
+        "../models/model_states/temporal/tgtc/tgtc_fusion_past_best.pt",
     ),
     "tgtc-att": (
         TemporalGraphTrainer,
-        {"use_attention": True},
-        "../models/model_states/temporal/tgtc/model_small_10epochs_lstm_tsd_lstm_att_current.pt",
+        {"model_type": ModelVariant.TGTC_ATT},
+        "../models/model_states/temporal/tgtc/tgtc-att-2layer.pt",
+    ),
+    "tgtc-experimental": (
+        TemporalGraphTrainer,
+        {"model_type": ModelVariant.TGTC_ATT},
+        "../models/model_states/temporal/tgtc/tgtc-att-2layer.pt",
+    ),
+    "tgcn": (
+        TemporalGraphTrainer,
+        {"model_type": ModelVariant.EXPERIMENTAL},
+        "../models/model_states/temporal/tgcn/tgtc-attention-experimental.pt",
     ),
     "tgtc-big": (
         TemporalGraphTrainer,
@@ -62,11 +78,19 @@ model_map = {
     "gaegat": (
         GAEModel,
         {"encoder": GATEncoder},
-        "../models/model_states/gaegat/",
+        "../models/model_states/temporal/gaegat/model.pt",
     ),
-    "node2vec": (Node2VecModel, {"q": 4, "p": 1}, "../models/model_states/node2vec"),
-    "deepwalk": (Node2VecModel, {"q": 1, "p": 1}, "../models/model_states/deepwalk"),
-    "pca": (PCAModel, {}, "../models/model_states/pca"),
+    "node2vec": (
+        Node2VecModel,
+        {"q": 4, "p": 1},
+        "../models/model_states/temporal/node2vec/model.pt",
+    ),
+    "deepwalk": (
+        Node2VecModel,
+        {"q": 1, "p": 1},
+        "../models/model_states/temporal/deepwalk/model.pt",
+    ),
+    "pca": (PCAModel, {"emb_dim": 2}, "../models/model_states/temporal/pca"),
 }
 
 
@@ -169,9 +193,13 @@ def evaluate_models(args, data, traj, network, seed):
     for m in models:
         model, margs, model_path = model_map[m]
         mdata = data
-        if "tgtc" in m:
-            margs["adj"] = np.loadtxt(
-                f"../models/training/temporal/traj_adj_k_2_bi_temporal_gtc_small_graph.gz"
+        if "tgtc" in m or "tgcn" in m:
+            margs["adj"] = (
+                np.loadtxt(
+                    f"../models/training/temporal/traj_adj_k_2_bi_temporal_gtc_small_graph.gz"
+                )
+                if "tgtc" in m
+                else nx.adjacency_matrix(network.line_graph).A
             )
             margs["struc_emb"] = load_tsd_embedding(network, device)
 
@@ -188,7 +216,7 @@ def evaluate_models(args, data, traj, network, seed):
 
         targs = {}
         if "roadclf" not in tasks:
-            if "tgtc" in m:
+            if "tgtc" in m or "tgcn" in m:
                 print("adding temporal plugin")
                 plugin = load_temporal_plugin(model.model, network, device)
                 targs = {"plugin": plugin}
@@ -227,6 +255,14 @@ if __name__ == "__main__":
         default=32,
     )
     parser.add_argument(
+        "-lr",
+        "--learning_rate",
+        help="learning rate for lstm training",
+        required=False,
+        type=float,
+        default=0.001,
+    )
+    parser.add_argument(
         "-p",
         "--path",
         help="Save path evaluation results",
@@ -251,7 +287,7 @@ if __name__ == "__main__":
 
     path = os.path.join(
         args["path"],
-        str(datetime.now().strftime("%m-%d-%Y-%H-%M")),
+        str(datetime.now().strftime("%m-%d-%Y-%H-%M-%s")),
     )
     os.mkdir(path)
     for name, res in results:

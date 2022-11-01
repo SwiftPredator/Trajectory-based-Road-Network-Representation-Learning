@@ -366,6 +366,14 @@ if __name__ == "__main__":
         default=512,
     )
     parser.add_argument(
+        "-lr",
+        "--learning_rate",
+        help="learning rate for lstm training",
+        required=False,
+        type=float,
+        default=0.001,
+    )
+    parser.add_argument(
         "-s",
         "--speed",
         help="Include speed features given as comma seperated column names",

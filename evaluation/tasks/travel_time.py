@@ -29,6 +29,7 @@ class TravelTimeEstimation(Task):
         emb_dim: int = 128,
         batch_size: int = 128,
         epochs: int = 10,
+        learning_rate: float = 0.001,
     ):
         self.metrics = {}
         self.data = traj_dataset
@@ -37,6 +38,7 @@ class TravelTimeEstimation(Task):
         self.device = device
         self.batch_size = batch_size
         self.epochs = epochs
+        self.lr = learning_rate
         self.seed = seed
         # make a train test split on trajectorie data
         self.train, self.test = model_selection.train_test_split(
@@ -45,13 +47,13 @@ class TravelTimeEstimation(Task):
 
     def evaluate(self, emb: np.ndarray, plugin: nn.Module = None):
         use_temporal = False if plugin == None else True
-        self.train_loader = DataLoader(
+        train_loader = DataLoader(
             TTE_Dataset(self.train, self.network, use_temporal),
             collate_fn=TTE_Dataset.collate_fn_padd,
             batch_size=self.batch_size,
             shuffle=True,
         )
-        self.eval_loader = DataLoader(
+        eval_loader = DataLoader(
             TTE_Dataset(self.test, self.network, use_temporal),
             collate_fn=TTE_Dataset.collate_fn_padd,
             batch_size=self.batch_size,
@@ -60,17 +62,23 @@ class TravelTimeEstimation(Task):
             device=self.device,
             emb_dim=emb.shape[1],
             batch_size=self.batch_size,
+            learning_rate=self.lr,
             plugin=plugin,
         )
 
         # train on x trajectories
-        model.train_model(loader=self.train_loader, emb=emb, epochs=self.epochs)
+        model.train_model(loader=train_loader, emb=emb, epochs=self.epochs)
 
         # eval on rest
-        yh, y = model.predict(loader=self.eval_loader, emb=emb)
+        yh, y = model.predict(loader=eval_loader, emb=emb)
         res = {}
         for name, (metric, args) in self.metrics.items():
             res[name] = metric(y, yh, **args)
+
+        # cleanup
+        del model
+        del train_loader
+        del eval_loader
 
         return res
 
@@ -175,6 +183,7 @@ class TTE_LSTM(nn.Module):
         hidden_units: int = 128,
         layers: int = 2,
         batch_size: int = 128,
+        learning_rate: float = 0.001,
         plugin=None,
     ):
         super(TTE_LSTM, self).__init__()
@@ -195,7 +204,7 @@ class TTE_LSTM(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.loss = nn.MSELoss()
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.opt = torch.optim.Adam(self.parameters(), lr=learning_rate)
         self.plugin = plugin
 
         self.encoder.to(device)
