@@ -43,6 +43,13 @@ model_map = {
         TemporalGraphTrainer,
         {"model_type": ModelVariant.TGTC_BASE},
         "../models/model_states/temporal/tgtc/model_small_10epochs_base.pt",
+        "../models/model_states/temporal/tgtc/tgtc_noroad.pt",
+    ),
+    "gtc": (
+        GTCModel,
+        {},
+        "../models/model_states/temporal/gtc/gtc.pt",
+        "../models/model_states/temporal/gtc/gtc_noroad.pt",
     ),
     "tgtc-fusion": (
         TemporalGraphTrainer,
@@ -52,49 +59,63 @@ model_map = {
     "tgtc-att": (
         TemporalGraphTrainer,
         {"model_type": ModelVariant.TGTC_ATT},
-        "../models/model_states/temporal/tgtc/tgtc-att-2layer.pt",
+        "../models/model_states/temporal/tgtc/tgtc-2layer-gtc-attention-skip-connection.pt",
+        "../models/model_states/temporal/tgtc/tgtc-att-noroad.pt",
     ),
     "tgtc-experimental": (
         TemporalGraphTrainer,
         {"model_type": ModelVariant.TGTC_ATT},
-        "../models/model_states/temporal/tgtc/tgtc-att-2layer.pt",
+        "../models/model_states/temporal/tgtc/tgtc-2layer-gtc-attention-skip-connection-tsd-init.pt",
+    ),
+    "tgtc-experimental-2": (
+        TemporalGraphTrainer,
+        {"model_type": ModelVariant.EXPERIMENTAL2},
+        "../models/model_states/temporal/tgtc/tgtc-2layer-gtc-attention.pt",
     ),
     "tgcn": (
         TemporalGraphTrainer,
-        {"model_type": ModelVariant.EXPERIMENTAL},
-        "../models/model_states/temporal/tgcn/tgtc-attention-experimental.pt",
+        {"model_type": ModelVariant.TGCN},
+        "../models/model_states/temporal/tgcn/tgcn.pt",
     ),
     "tgtc-big": (
         TemporalGraphTrainer,
         {"use_attention": True},
         "../models/model_states/temporal/tgtc/model_small_20epochs_lstm_tsd_with_big_att.pt",
     ),
-    "traj2vec": (Traj2VecModel, {}, "../models/model_states/traj2vec"),
     "gaegcn": (
         GAEModel,
         {"encoder": GCNEncoder},
         "../models/model_states/temporal/gaegcn/model.pt",
+        "../models/model_states/temporal/gaegcn/gaegcn_noroad.pt",
     ),
     "gaegat": (
         GAEModel,
         {"encoder": GATEncoder},
         "../models/model_states/temporal/gaegat/model.pt",
+        "../models/model_states/temporal/gaegat/gaegat_noroad.pt",
     ),
     "node2vec": (
         Node2VecModel,
         {"q": 4, "p": 1},
+        "../models/model_states/temporal/node2vec/model.pt",
         "../models/model_states/temporal/node2vec/model.pt",
     ),
     "deepwalk": (
         Node2VecModel,
         {"q": 1, "p": 1},
         "../models/model_states/temporal/deepwalk/model.pt",
+        "../models/model_states/temporal/deepwalk/model.pt",
     ),
-    "pca": (PCAModel, {"emb_dim": 2}, "../models/model_states/temporal/pca"),
+    "pca": (
+        PCAModel,
+        {"emb_dim": 2},
+        "../models/model_states/temporal/pca",
+        "../models/model_states/temporal/pca",
+    ),
 }
 
 
-def load_data():
+def load_data(remove_highway: bool):
     logging.info("Load data...")
     unmapped_traj = pd.read_csv(
         "../datasets/trajectories/hanover/temporal/mapped_id_poly_clipped_small_graph.csv",
@@ -123,8 +144,12 @@ def load_data():
         columns={"speed_limi": "speed_limit", "highway_en": "highway_enc"}, inplace=True
     )
 
+    remove_labels = ["highway_enc"] if remove_highway else []
     data = network.generate_road_segment_pyg_dataset(
-        traj_data=None, include_coords=False, dataset="hannover_small"
+        traj_data=None,
+        include_coords=False,
+        dataset="hannover_small",
+        drop_labels=remove_labels,
     )
     logging.info("...finished loading data")
 
@@ -169,6 +194,11 @@ def evaluate_models(args, data, traj, network, seed):
     tasks = [t for t in args["tasks"].split(",")]
     eva = Evaluation()
 
+    if "roadclf" in tasks and len(tasks) > 1:
+        raise ValueError(
+            "Roadclf in tasks with another task. Roadclf can only be evaluated alone in a single run."
+        )
+
     if "roadclf" in tasks:
         eva.register_task("roadclf", init_roadclf(args, network, seed))
 
@@ -191,7 +221,7 @@ def evaluate_models(args, data, traj, network, seed):
         )
 
     for m in models:
-        model, margs, model_path = model_map[m]
+        model, margs, model_path, model_noroad_path = model_map[m]
         mdata = data
         if "tgtc" in m or "tgcn" in m:
             margs["adj"] = (
@@ -208,11 +238,19 @@ def evaluate_models(args, data, traj, network, seed):
             )
             mdata = torch.swapaxes(mdata, 0, 1)
             mdata = mdata.numpy()
+            if "roadclf" in tasks:
+                mdata = mdata[:, :, :-1]
 
             margs["device_ids"] = [int(args["device"])]
+        elif m == "gtc":
+            margs["adj"] = np.loadtxt(
+                f"../models/training/temporal/traj_adj_k_2_bi_temporal_gtc_small_graph.gz"
+            )
+            margs["network"] = network
 
         model = model(mdata, device=device, **margs)
-        model.load_model(path=model_path)
+        path = model_path if "roadclf" not in tasks else model_noroad_path
+        model.load_model(path=path)
 
         targs = {}
         if "roadclf" not in tasks:
@@ -278,7 +316,8 @@ if __name__ == "__main__":
     seed = 69
     results = []
 
-    network, traj, data = load_data()
+    remove_highway = True if "roadclf" in args["tasks"].split(",") else False
+    network, traj, data = load_data(remove_highway)
     res = evaluate_models(args, data, traj, network, seed)
 
     for name, res in res:

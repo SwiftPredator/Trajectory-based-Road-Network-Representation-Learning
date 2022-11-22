@@ -16,8 +16,13 @@ if module_path not in sys.path:
 import numpy as np
 import torch
 import torch_geometric.transforms as T
+from tasks import ContextualEmbeddingPlugin
+from tasks.task_loader import *
+
+from evaluation import Evaluation
 from generator import RoadNetwork, Trajectory
 from models import (
+    CLMModel,
     ConcateAdapterModel,
     GAEModel,
     GATEncoder,
@@ -32,10 +37,6 @@ from models import (
     Toast,
     Traj2VecModel,
 )
-
-from evaluation import Evaluation
-from tasks import ContextualEmbeddingPlugin
-from tasks.task_loader import *
 
 model_map = {
     # "add-gtn-gtc": (
@@ -110,6 +111,7 @@ model_map = {
         },  # if want to evaluate completly without road label change to './models/training/hrnr_data_noroad'
         "../models/model_states/hrnr",
     ),
+    "clm": (CLMModel, {}, "../models/model_states/clm"),
 }
 
 
@@ -287,7 +289,7 @@ def evaluate_model(args, data, network, trajectory, seed):
 
             margs["models"] = agg_models
 
-        if m in ["toast", "srn2vec", "rfn", "hrnr"]:
+        if m in ["toast", "srn2vec", "rfn", "hrnr", "clm"]:
             margs["network"] = network
 
         if m == "toast" and "roadclf" in tasks:
@@ -321,6 +323,17 @@ def evaluate_model(args, data, network, trajectory, seed):
 
         if m == "hrnr":
             margs["city"] = args["city"]
+
+        if m == "clm":
+            trans_mat = np.loadtxt(f"../models/training/clm_trans_mat_{city}.gz")
+            trans_mat_b = trans_mat > 0.6
+            aug_edges = [
+                (i // trans_mat.shape[0], i % trans_mat.shape[0])
+                for i, n in enumerate(trans_mat_b.flatten())
+                if n
+            ]
+            aug_edge_index = torch.tensor(np.array(aug_edges).transpose()).cuda()
+            margs["trans_adj"] = aug_edge_index
 
         model = model(data, device=device, **margs)
         model.load_model(
