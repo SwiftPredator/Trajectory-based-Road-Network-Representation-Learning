@@ -31,6 +31,7 @@ class ModelVariant(Enum):
     TGTC_ATT = 3
     TGTC_FUSION = 4
     EXPERIMENTAL = 5
+    EXPERIMENTAL2 = 6
 
 
 class TemporalGraphTrainer(Model):
@@ -131,7 +132,7 @@ class TemporalGraphTrainer(Model):
             self.model,
             self.train_loader,
             self.eval_loader,
-            lr_find_kwargs={"num_training": 100},
+            lr_find_kwargs={"num_training": 100, "max_lr": 0.01},
         )
 
         return self.model.learning_rate
@@ -200,6 +201,8 @@ class TemporalGraphModel(pl.LightningModule):
             _model = TemporalAttentionEncoder
         elif model_type.value == ModelVariant.EXPERIMENTAL.value:
             _model = ExperimentalEncoder
+        elif model_type.value == ModelVariant.EXPERIMENTAL2.value:
+            _model = ExperimentalEncoder2
 
         self.encoder = _model(
             input_dim=input_dim,
@@ -393,7 +396,7 @@ class TemporalGraphEncoder(nn.Module):
         hidden_state = (
             struc_emb_unrolled.clone()
         )  # torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
-        cell_state = struc_emb_unrolled.clone()
+        cell_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
         output = None
         # hidden_sequence = torch.zeros(
         #     size=(seq_len, batch_size, num_nodes, self._hidden_dim)
@@ -403,7 +406,10 @@ class TemporalGraphEncoder(nn.Module):
             input = x[
                 :, i, :, :
             ]  # if not self._use_attention else x_dynamic[:, i, :, :]
-            hidden_state, cell_state, _ = self._encoder(input, hidden_state, cell_state)
+            (
+                hidden_state,
+                cell_state,
+            ) = self._encoder(input, hidden_state, cell_state)
             output = hidden_state.reshape((batch_size, num_nodes, self._hidden_dim))
             # conv = conv.reshape((batch_size, num_nodes, self._hidden_dim))
             # if self._use_attention:
@@ -503,14 +509,16 @@ class TemporalAttentionEncoder(nn.Module):
 
         self._self_attention = nn.MultiheadAttention(hidden_dim, 4, batch_first=True)
         self._lstm = nn.LSTM(hidden_dim, hidden_dim, num_layers=1, batch_first=True)
+        self.bnorm = nn.BatchNorm1d(hidden_dim)
 
         self._hidden_dim = hidden_dim
         self._device = device
+        self._struc_emb = struc_emb
 
     def forward(self, x):
         batch_size, seq_len, num_nodes, num_feat = x.shape
-        x_dynamic, x_static = x[:, :, :, 0].unsqueeze(-1), x[:, 0, :, 1:]
-        hidden_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
+        # x_dynamic, x_static = x[:, :, :, 0].unsqueeze(-1), x[:, 0, :, 1:]
+        # hidden_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
         cell_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
         output = None
 
@@ -519,11 +527,18 @@ class TemporalAttentionEncoder(nn.Module):
         )
 
         # encode sequence with graph conv and generate gru sequence embedding
+        struc = (
+            self._struc_emb.unsqueeze(0)
+            .repeat(batch_size, 1, 1)
+            .reshape(batch_size, num_nodes * self._hidden_dim)
+        )
+        hidden_state = struc.clone()
+        # cell_state = struc.clone()
         for i in range(seq_len):
             input = x[:, i, :, :]
             hidden_state, cell_state = self._encoder(input, hidden_state, cell_state)
-            output = hidden_state.reshape((batch_size, num_nodes, self._hidden_dim))
-            hidden_sequence[i, :, :, :] = output
+            output_l1 = hidden_state.reshape((batch_size, num_nodes, self._hidden_dim))
+            hidden_sequence[i, :, :, :] = output_l1
 
         hidden_sequence = hidden_sequence.reshape(
             seq_len, batch_size * num_nodes, self._hidden_dim
@@ -548,7 +563,13 @@ class TemporalAttentionEncoder(nn.Module):
         context, _ = self._lstm(context, (hidden_state_2, cell_state_2))
         context = context[:, -1, :]
 
-        output = context.reshape((batch_size, num_nodes, self._hidden_dim))
+        output_l1 = output_l1.reshape((batch_size * num_nodes, self._hidden_dim))
+        output_l2 = context.reshape((batch_size * num_nodes, self._hidden_dim))
+
+        # residual connection (add and batch norm)
+        output = self.bnorm(output_l1 + output_l2)
+
+        output = output.reshape((batch_size, num_nodes, self._hidden_dim))
 
         # Z -> BxNxE
         return output
@@ -637,6 +658,7 @@ class ExperimentalEncoder2(nn.Module):
         self._encoder2 = TGTCCellLSTM(adj, input_dim=hidden_dim, hidden_dim=hidden_dim)
 
         self._self_attention = nn.MultiheadAttention(hidden_dim, 4, batch_first=True)
+        # self.lnorm = nn.LayerNorm(hidden_dim)
         # self._self_attention = DotProductAtt()
 
         self._hidden_dim = hidden_dim
@@ -647,9 +669,8 @@ class ExperimentalEncoder2(nn.Module):
         # x_dynamic, x_static = x[:, :, :, 0].unsqueeze(-1), x[:, 0, :, 1:]
         hidden_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
         cell_state = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
-        hx = torch.zeros(num_nodes * batch_size, self._hidden_dim).type_as(x)
-        cx = torch.zeros(num_nodes * batch_size, self._hidden_dim).type_as(x)
-        embedding = torch.zeros(num_nodes).type_as(x)
+        hx = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
+        cx = torch.zeros(batch_size, num_nodes * self._hidden_dim).type_as(x)
         output = None
 
         hidden_sequence = torch.zeros(
@@ -668,12 +689,12 @@ class ExperimentalEncoder2(nn.Module):
         )
         hidden_sequence = hidden_sequence.permute((1, 0, 2))
         hidden_sequence = hidden_sequence.to(self._device)
-        context = self._self_attention(
+        context, _ = self._self_attention(
             hidden_sequence, hidden_sequence, hidden_sequence
         )
         for i in range(seq_len):
-            input = context[:, i, :]
-            hx, cx = self._encoder2(input, (hx, cx))
+            input = context[:, i, :].reshape(batch_size, num_nodes, self._hidden_dim)
+            hx, cx = self._encoder2(input, hx, cx)
             output = hx.reshape((batch_size, num_nodes, self._hidden_dim))
 
         output = output.reshape((batch_size, num_nodes, self._hidden_dim))
@@ -958,7 +979,7 @@ class TGTCCellLSTM(nn.Module):
             bias=1.0,
         )
         self.graph_conv2 = TGTCConvolution(
-            adj, self._hidden_dim, self._hidden_dim, add_dims=add_dims
+            adj, self._hidden_dim, self._hidden_dim, add_dims=self._input_dim
         )
 
     def forward(self, inputs, hidden_state, cell_state):

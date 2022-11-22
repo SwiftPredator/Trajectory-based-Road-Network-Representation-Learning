@@ -18,7 +18,8 @@ dependencies:
   - joblib
   - gensim
   - pip:
-    - mxnet-cu112
+      - mxnet-cu112
+      - pytorch-lightning
   #     - pdoc3
   #     - matplotlib
   #     - scipy

@@ -24,7 +24,8 @@ except ImportError:
 
 try:
     import fmm
-    from fmm import STMATCH, FastMapMatchConfig, Network, NetworkGraph, STMATCHConfig
+    from fmm import (STMATCH, FastMapMatchConfig, Network, NetworkGraph,
+                     STMATCHConfig)
 except ImportError:
     ...
 
@@ -266,11 +267,11 @@ class RoadNetwork:
             df["y"] = df.geometry.centroid.y / 100  # normalize to -1/1
 
         if dataset == "hannover_small":
-            features = torch.DoubleTensor(
-                np.array(
-                    df[["speed_limit", "highway_enc", "length"]].values, dtype=np.double
-                )
-            )
+            cats = ["speed_limit", "length"]
+            if "highway_enc" not in drop_labels:
+                cats.append("highway_enc")
+            features = torch.DoubleTensor(np.array(df[cats].values, dtype=np.double))
+            features = features / features.max(0, keepdim=True)[0]
             # print(features)
             # create pyg dataset
             data = Data(x=features, edge_index=edge_index)
