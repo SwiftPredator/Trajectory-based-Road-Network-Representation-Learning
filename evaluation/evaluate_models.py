@@ -21,22 +21,9 @@ from tasks.task_loader import *
 
 from evaluation import Evaluation
 from generator import RoadNetwork, Trajectory
-from models import (
-    CLMModel,
-    ConcateAdapterModel,
-    GAEModel,
-    GATEncoder,
-    GCNEncoder,
-    GTCModel,
-    GTNModel,
-    HRNRModel,
-    Node2VecModel,
-    PCAModel,
-    RFNModel,
-    SRN2VecModel,
-    Toast,
-    Traj2VecModel,
-)
+from models import (CLMModel, ConcateAdapterModel, GAEModel, GATEncoder,
+                    GCNEncoder, GTCModel, GTNModel, HRNRModel, Node2VecModel,
+                    PCAModel, RFNModel, SRN2VecModel, Toast, Traj2VecModel)
 
 model_map = {
     # "add-gtn-gtc": (
@@ -186,7 +173,7 @@ def get_model_path_for_task(base_path, tasks, model_name, seed, city):
         base_path (_type_): _description_
         tasks (_type_): desc
     """
-    if model_name in ["node2vec", "deepwalk", "traj2vec", "pca"]:
+    if model_name in ["node2vec", "deepwalk", "traj2vec", "pca", "clm"]:
         return os.path.join(base_path, f"model_base_{city}.pt")
 
     # if "meanspeed" in tasks and model_name in ["gtc", "gtn"]:
@@ -325,7 +312,7 @@ def evaluate_model(args, data, network, trajectory, seed):
             margs["city"] = args["city"]
 
         if m == "clm":
-            trans_mat = np.loadtxt(f"../models/training/clm_trans_mat_{city}.gz")
+            trans_mat = np.load(f"../models/training/clm_trans_mat_{city}.npy")
             trans_mat_b = trans_mat > 0.6
             aug_edges = [
                 (i // trans_mat.shape[0], i % trans_mat.shape[0])

@@ -8,23 +8,43 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GATConv
-from torch_geometric.utils import dropout_adj
+from torch_geometric.nn import GATConv, InnerProductDecoder
+from torch_geometric.utils import negative_sampling
+from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from .model import Model
 from .utils import generate_trajid_to_nodeid
 
 
-def jsd(z1, z2, pos_mask):
-    neg_mask = 1 - pos_mask
+def jsd(z1, z2, pos_mask=None, calc_type="normal"):
+    if calc_type == "optimized":
+        # negative samples
+        # NxE * (7*E)^T = Nx7
+        # sample negative edge index
+        row, col, _ = pos_mask.t().coo()
+        pos_edge_index = torch.stack([row, col], dim=0)
+        neg_edge_index = negative_sampling(
+            pos_edge_index, z1.shape[0], num_neg_samples=z1.shape[0] * 7
+        )
+        sim_mat_pos = (z1[pos_edge_index[0]] * z2[pos_edge_index[1]]).sum(dim=1)
+        sim_mat_neg = (z1[neg_edge_index[0]] * z2[neg_edge_index[1]]).sum(dim=1)
+        E_pos = math.log(2.0) - F.softplus(-sim_mat_pos)
+        E_neg = F.softplus(-sim_mat_neg) + sim_mat_neg - math.log(2.0)
 
-    sim_mat = torch.mm(z1, z2.t())
-    E_pos = math.log(2.0) - F.softplus(-sim_mat)
-    E_neg = F.softplus(-sim_mat) + sim_mat - math.log(2.0)
-    return (E_neg * neg_mask).sum() / neg_mask.sum() - (
-        E_pos * pos_mask
-    ).sum() / pos_mask.sum()
+        return (
+            E_neg.sum() / neg_edge_index.shape[1]
+            - (E_pos).sum() / pos_edge_index.shape[1]
+        )
+    else:
+        neg_mask = 1 - pos_mask
+        sim_mat = torch.mm(z1, z2.t())
+        E_pos = math.log(2.0) - F.softplus(-sim_mat)
+        E_neg = F.softplus(-sim_mat) + sim_mat - math.log(2.0)
+
+        return (E_neg * neg_mask).sum() / neg_mask.sum() - (
+            E_pos * pos_mask
+        ).sum() / pos_mask.sum()
 
 
 def nce(z1, z2, pos_mask):
@@ -45,11 +65,10 @@ def ntx(z1, z2, pos_mask, tau=0.5, normalize=False):
 
 def node_node_loss(node_rep1, node_rep2, measure):
     num_nodes = node_rep1.shape[0]
-
-    pos_mask = torch.eye(num_nodes).cuda()
+    pos_mask = SparseTensor.eye(num_nodes, num_nodes)
 
     if measure == "jsd":
-        return jsd(node_rep1, node_rep2, pos_mask)
+        return jsd(node_rep1, node_rep2, pos_mask, calc_type="optimized")
     elif measure == "nce":
         return nce(node_rep1, node_rep2, pos_mask)
     elif measure == "ntx":
@@ -161,7 +180,7 @@ class GraphEncoder(nn.Module):
 def train_data_loader(df, padding_id, traj_map):
     min_len = 10
     max_len = 100
-    num_samples = 250000
+    num_samples = 250000  # 500000
 
     df["path_len"] = df["path"].map(len)
     df = df.loc[(df["path_len"] > min_len) & (df["path_len"] < max_len)]
@@ -212,13 +231,14 @@ class CLMModel(Model):
             vocab_size=data.x.shape[0],
             embed_size=emb_dim,
             hidden_size=hidden_size,
-            edge_index1=data.edge_index.cuda(),
+            edge_index1=data.edge_index,
             edge_index2=trans_adj,
             graph_encoder1=graph_encoder1,
             graph_encoder2=graph_encoder2,
             seq_encoder=seq_encoder,
         )
-        self.model.to(device)
+        self.model = nn.DataParallel(self.model)
+        self.model.cuda()
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=1e-3, weight_decay=1e-6
         )
@@ -264,7 +284,7 @@ class CLMModel(Model):
         self.model.load_state_dict(torch.load(path, map_location=self.device))
 
     def load_emb(self):
-        emb, _, _ = self.model.encode_graph()
+        emb, _, _ = self.model.module.encode_graph()
         return emb.detach().cpu().numpy()
 
 
@@ -284,7 +304,7 @@ class CLMEncoder(nn.Module):
 
         self.vocab_size = vocab_size
         self.node_embedding = nn.Embedding(vocab_size, embed_size)
-        self.padding = torch.zeros(1, hidden_size, requires_grad=False).cuda()
+        self.padding = torch.zeros(1, hidden_size, requires_grad=False)
         self.edge_index1 = edge_index1
         self.edge_index2 = edge_index2
         self.graph_encoder1 = graph_encoder1
@@ -293,8 +313,8 @@ class CLMEncoder(nn.Module):
 
     def encode_graph(self):
         node_emb = self.node_embedding.weight
-        node_enc1 = self.graph_encoder1(node_emb, self.edge_index1)
-        node_enc2 = self.graph_encoder2(node_emb, self.edge_index2)
+        node_enc1 = self.graph_encoder1(node_emb, self.edge_index1.cuda())
+        node_enc2 = self.graph_encoder2(node_emb, self.edge_index2.cuda())
         return node_enc1 + node_enc2, node_enc1, node_enc2
 
     def encode_sequence(self, sequences):
@@ -304,7 +324,7 @@ class CLMEncoder(nn.Module):
         src_key_padding_mask = sequences == self.vocab_size
         pool_mask = (1 - src_key_padding_mask.int()).transpose(0, 1).unsqueeze(-1)
 
-        lookup_table1 = torch.cat([node_enc1, self.padding], 0)
+        lookup_table1 = torch.cat([node_enc1, self.padding.cuda()], 0)
         seq_emb1 = (
             torch.index_select(lookup_table1, 0, sequences.view(-1))
             .view(batch_size, max_seq_len, -1)
@@ -313,7 +333,7 @@ class CLMEncoder(nn.Module):
         seq_enc1 = self.seq_encoder(seq_emb1, None, src_key_padding_mask)
         seq_pooled1 = (seq_enc1 * pool_mask).sum(0) / pool_mask.sum(0)
 
-        lookup_table2 = torch.cat([node_enc2, self.padding], 0)
+        lookup_table2 = torch.cat([node_enc2, self.padding.cuda()], 0)
         seq_emb2 = (
             torch.index_select(lookup_table2, 0, sequences.view(-1))
             .view(batch_size, max_seq_len, -1)
