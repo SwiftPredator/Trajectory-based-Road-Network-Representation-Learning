@@ -8,13 +8,12 @@
 </div>
 -->
 
-#
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 Code repo from my master thesis from 2022, in which we proposed four novel road segment representation learning models.
 
-Abstract:
+### Abstract:
 
 Road networks, as the core component of urban transportation, are naturally highly
 dynamic, considering traffic patterns and movement behavior induced by traversing
