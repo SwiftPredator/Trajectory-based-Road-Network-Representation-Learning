@@ -46,6 +46,19 @@ prediction than the best performing non-temporal baseline, showing that the inco
 of temporal dynamics significantly boosts the performance on temporal dependent tasks.
 
 
+### Implemented Road Network Representation Learning Baselines:
+- HRNR (https://dl.acm.org/doi/10.1145/3394486.3403043)
+- RFN (https://arxiv.org/pdf/2006.09030.pdf)
+- SRN2Vec (https://dl.acm.org/doi/10.1145/3424346)
+- Toast (https://dl.acm.org/doi/10.1145/3459637.3482293) (Code removed from repo)
+- Jointly Contrastive Representation Learning (https://arxiv.org/abs/2209.06389)
+- TGCN (https://arxiv.org/abs/1811.05320) (For temporal evaluation)
+- Other simple baselines like GAE, Node2Vec, DeepWalk, PCA
+
+All models are written in Python using Pytorch
+
+
+
 <!-- GETTING STARTED -->
 ## Getting Started
 
