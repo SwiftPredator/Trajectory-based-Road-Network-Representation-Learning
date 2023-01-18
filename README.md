@@ -55,7 +55,7 @@ of temporal dynamics significantly boosts the performance on temporal dependent 
 - TGCN (https://arxiv.org/abs/1811.05320) (For temporal evaluation)
 - Other simple baselines like GAE, Node2Vec, DeepWalk, PCA
 
-All models are written in Python using Pytorch
+All models are written in Python using Pytorch (except for rfn, which uses mxnet)
 
 
 
