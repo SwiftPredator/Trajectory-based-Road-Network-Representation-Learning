@@ -12,6 +12,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 Code repo from my master thesis from 2022, in which we proposed four novel road segment representation learning models.
+The datasets and model states were removed because of storage limits. Furthermore, the implementation of the toast model was removed because of copyright conflicts. 
 
 ### Abstract:
 
